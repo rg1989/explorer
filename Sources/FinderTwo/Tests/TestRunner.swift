@@ -872,6 +872,20 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31i: typed ⌘C / ⌘V in a text field act on the text, clicks on files ---
+        assert("typed ⌘V while editing text pastes text",
+               BrowserWindowController.shortcutGoesToText(eventType: .keyDown, textHasFocus: true), "went to files")
+        assert("typed ⌘V in the file list pastes files",
+               !BrowserWindowController.shortcutGoesToText(eventType: .keyDown, textHasFocus: false), "went to text")
+        assert("a menu click pastes files even with the cursor in the filter",
+               !BrowserWindowController.shortcutGoesToText(eventType: .leftMouseUp, textHasFocus: true), "went to text")
+        // Copy-path button next to the address field.
+        pane.testToolbar.pathText = sandbox.path
+        pane.testToolbar.testClickCopyPath()
+        assert("the path field's copy button copies the path",
+               NSPasteboard.general.string(forType: .string) == sandbox.path,
+               "got \(NSPasteboard.general.string(forType: .string) ?? "nil")")
+
         // --- T31h: "Show in Finder" requests (open documents) reveal in Explorer ---
         let revDir = sandbox.appendingPathComponent("reveal")
         let revFile = revDir.appendingPathComponent("target.txt")

@@ -1288,6 +1288,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     var testColumnVC: ColumnViewController? { columnVC }
     var testIconVC: IconViewController? { iconVC }
     var testToolbarVisible: Bool { !toolbar.isHidden }
+    var testToolbar: ToolbarView { toolbar }
     var testHotbarVisible: Bool { !hotbar.isHidden }
     var testTabStripVisible: Bool { !tabStrip.isHidden }
     var testTabStrip: TabStripView { tabStrip }

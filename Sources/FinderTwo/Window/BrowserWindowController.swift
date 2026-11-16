@@ -747,21 +747,39 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
         if RemoteFileOps.routeDelete(sel) { pane.reload() }
     }
 
-    @objc func pasteMove(_ sender: Any?) { activePane?.pasteMoveHere() }
-    @objc func copyFiles(_ sender: Any?) { activePane?.copySelection() }
+    @objc func pasteMove(_ sender: Any?) {
+        if isEditingText { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: sender); return }
+        activePane?.pasteMoveHere()
+    }
+    /// The Edit shortcuts are app-wide. Typed ⌘C / ⌘X / ⌘V while text is being
+    /// edited (the path field, the filter, a rename, another window's field)
+    /// act on that text. Clicks (context menu, hotbar) always act on files, even
+    /// if the cursor was left in the filter.
+    private var isEditingText: Bool {
+        BrowserWindowController.shortcutGoesToText(
+            eventType: NSApp.currentEvent?.type,
+            textHasFocus: NSApp.keyWindow !== window
+                || window?.firstResponder is NSText || window?.firstResponder is NSTextView)
+    }
+    static func shortcutGoesToText(eventType: NSEvent.EventType?, textHasFocus: Bool) -> Bool {
+        eventType == .keyDown && textHasFocus
+    }
+    @objc func copyFiles(_ sender: Any?) {
+        if isEditingText { NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: sender); return }
+        activePane?.copySelection()
+    }
     /// ⌘X — file-cut only when THIS browser window is frontmost and the file
     /// list (not a text field) has focus; otherwise fall through to the standard
     /// text cut so editing a filename / search / settings field still works in
     /// any window. (The menu item is app-wide, so we must not hijack ⌘X.)
     @objc func cutFiles(_ sender: Any?) {
-        let fr = window?.firstResponder
-        if NSApp.keyWindow === window, !(fr is NSText), !(fr is NSTextView) {
-            activePane?.cutSelection()
-        } else {
-            NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: sender)
-        }
+        if isEditingText { NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: sender); return }
+        activePane?.cutSelection()
     }
-    @objc func pasteFiles(_ sender: Any?) { activePane?.pasteHere() }
+    @objc func pasteFiles(_ sender: Any?) {
+        if isEditingText { NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: sender); return }
+        activePane?.pasteHere()
+    }
     @objc func duplicate(_ sender: Any?) { activePane?.duplicateSelection() }
 
     @objc func getInfo(_ sender: Any?) {

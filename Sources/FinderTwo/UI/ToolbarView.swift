@@ -25,6 +25,8 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
     private let upBtn = NSButton()
     // A search field without its buttons: the same rounded shape as the filter.
     private let pathField: NSTextField = NSSearchField()
+    /// Copies the path shown in the field.
+    private let copyPathBtn = NSButton()
     private let searchField = NSSearchField()
 
     override init(frame frameRect: NSRect) {
@@ -78,12 +80,20 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
         pathField.font = NSFont.systemFont(ofSize: 12)
         pathField.refusesFirstResponder = false
 
+        copyPathBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy Path")
+        copyPathBtn.bezelStyle = .texturedRounded
+        copyPathBtn.imagePosition = .imageOnly
+        copyPathBtn.toolTip = "Copy path"
+        copyPathBtn.target = self
+        copyPathBtn.action = #selector(copyPathClicked)
+        copyPathBtn.translatesAutoresizingMaskIntoConstraints = false
+
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.placeholderString = "Filter…"
         searchField.delegate = self
         searchField.sendsSearchStringImmediately = false
 
-        for v in [backBtn, fwdBtn, upBtn, pathField, searchField] {
+        for v in [backBtn, fwdBtn, upBtn, pathField, copyPathBtn, searchField] {
             addSubview(v)
         }
         NSLayoutConstraint.activate([
@@ -104,8 +114,13 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
 
             pathField.leadingAnchor.constraint(equalTo: upBtn.trailingAnchor, constant: 10),
             pathField.centerYAnchor.constraint(equalTo: centerYAnchor),
-            pathField.trailingAnchor.constraint(equalTo: searchField.leadingAnchor, constant: -8),
+            pathField.trailingAnchor.constraint(equalTo: copyPathBtn.leadingAnchor, constant: -4),
             pathField.heightAnchor.constraint(equalToConstant: 22),
+
+            copyPathBtn.trailingAnchor.constraint(equalTo: searchField.leadingAnchor, constant: -8),
+            copyPathBtn.centerYAnchor.constraint(equalTo: centerYAnchor),
+            copyPathBtn.widthAnchor.constraint(equalToConstant: 28),
+            copyPathBtn.heightAnchor.constraint(equalToConstant: 22),
 
             searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             searchField.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -126,7 +141,22 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
     /// data-driven toolbar phase.
     func setPathFieldVisible(_ visible: Bool) {
         pathField.isHidden = !visible
+        copyPathBtn.isHidden = !visible
     }
+
+    /// Copy what the path field shows, and flash a checkmark as confirmation.
+    @objc private func copyPathClicked() {
+        let path = pathField.stringValue.isEmpty ? pathText : pathField.stringValue
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+        copyPathBtn.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Copied")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.copyPathBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy Path")
+        }
+    }
+    func testClickCopyPath() { copyPathClicked() }
+    /// Test hook: put the cursor in the path field.
+    var testPathField: NSTextField { pathField }
 
     /// Test hook: whether the editable path field is currently showing.
     var testPathFieldVisible: Bool { !pathField.isHidden }
