@@ -545,6 +545,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         add("Cut", #selector(BrowserWindowController.cutFiles(_:)), enabled: hasSelection)
         add("Copy", #selector(BrowserWindowController.copyFiles(_:)), enabled: hasSelection)
         add("Paste", #selector(BrowserWindowController.pasteFiles(_:)), enabled: canPaste)
+        add(hasSelection ? "Copy Path" : "Copy Folder Path", #selector(BrowserWindowController.copyPath(_:)))
         if hasSelection {
             add("Duplicate", #selector(BrowserWindowController.duplicate(_:)))
             add("Rename…", #selector(BrowserWindowController.renameSelection(_:)),

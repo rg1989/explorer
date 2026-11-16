@@ -139,6 +139,11 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
         reportSelection()
     }
 
+    /// Test hook: name colours of the cells on screen, as sRGB hex.
+    var testLabelHexes: [String] {
+        collection.visibleItems().compactMap { ($0 as? IconGridItem)?.textField?.textColor?.testHex }
+    }
+
     /// Test hook: the currently-selected item(s).
     var testSelectedItems: [FileItem] {
         collection.selectionIndexPaths.compactMap { items.indices.contains($0.item) ? items[$0.item] : nil }
@@ -163,6 +168,9 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
         let bg: NSColor = t.id == "system" ? .controlBackgroundColor : t.background
         scroll.backgroundColor = bg
         view.layer?.backgroundColor = bg.cgColor
+        // Cells keep the text colour they were configured with; redo them so a
+        // switch to a dark theme doesn't leave dark names on a dark background.
+        if !items.isEmpty { reload(items) }
     }
 
     @objc private func handleDoubleClick(_ g: NSClickGestureRecognizer) {
@@ -280,5 +288,14 @@ final class IconGridItem: NSCollectionViewItem {
         let sel = t.id == "system" ? ThemeManager.shared.effectiveAccent.withAlphaComponent(0.25)
                                     : t.selectionBackground
         view.layer?.backgroundColor = isSelected ? sel.cgColor : NSColor.clear.cgColor
+    }
+}
+
+extension NSColor {
+    /// sRGB hex, for comparing colours in tests.
+    var testHex: String {
+        guard let c = usingColorSpace(.sRGB) else { return "?" }
+        return String(format: "%02X%02X%02X", Int(round(c.redComponent * 255)),
+                      Int(round(c.greenComponent * 255)), Int(round(c.blueComponent * 255)))
     }
 }

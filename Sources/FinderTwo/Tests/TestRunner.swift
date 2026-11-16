@@ -839,6 +839,32 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31f: icon view names follow the theme ---
+        // Regression: names kept the colour of the theme they were first drawn
+        // in, so after switching to a dark theme they were dark on dark.
+        let themeBefore = ThemeManager.shared.current.id
+        let nameDir = sandbox.appendingPathComponent("iconnames")
+        try? FileManager.default.createDirectory(at: nameDir.appendingPathComponent("one"), withIntermediateDirectories: true)
+        try? "x".write(to: nameDir.appendingPathComponent("two.txt"), atomically: true, encoding: .utf8)
+        ThemeManager.shared.setTheme(id: "sage")
+        pane.navigate(to: nameDir); pane.testReloadSync()
+        pane.setViewMode(.icon)
+        wait(0.1)
+        ThemeManager.shared.setTheme(id: "gruvbox")
+        wait(0.1)
+        let gruvText = ThemeManager.shared.current.labelPrimary.testHex
+        let shown = pane.testIconVC?.testLabelHexes ?? []
+        assert("icon view names switch to the new theme's text colour",
+               !shown.isEmpty && shown.allSatisfy { $0 == gruvText }, "got \(shown), want \(gruvText)")
+        pane.testIconVC?.selectFirst()
+        wait(0.05)
+        let shownSelected = pane.testIconVC?.testLabelHexes ?? []
+        assert("icon view names keep the theme colour when selected",
+               shownSelected.allSatisfy { $0 == gruvText }, "got \(shownSelected)")
+        ThemeManager.shared.setTheme(id: themeBefore)
+        pane.setViewMode(.list)
+        pane.navigate(to: sandbox); pane.testReloadSync()
+
         // --- T31e: item actions in the icon and column views ---
         // Regression: only the list view had a right-click menu, so icon/column
         // users had no New Folder / Cut / Copy / Paste / Rename / Trash.
@@ -852,7 +878,7 @@ final class TestRunner {
         if let ivc = pane.testIconVC {
             let titles = ivc.testContextMenu(atItem: 0)?.items.map(\.title) ?? []
             assert("icon view right-click shows the item actions",
-                   ["New Folder", "Cut", "Copy", "Paste", "Rename…", "Move to Trash"].allSatisfy(titles.contains),
+                   ["New Folder", "Cut", "Copy", "Paste", "Copy Path", "Rename…", "Move to Trash"].allSatisfy(titles.contains),
                    "got \(titles)")
             assert("icon view right-click selects the clicked item",
                    pane.selectedURLs().map(\.lastPathComponent) == ["sub"], "got \(pane.selectedURLs())")
@@ -3099,7 +3125,7 @@ final class TestRunner {
         // Tree folders get the file actions, and the tree shows changes on its own.
         let treeMenu = liveSidebar.testTreeMenuTitles(for: deep)
         assert("tree folders have New Folder, Rename, Cut, Copy and Move to Trash",
-               ["New Folder", "Rename…", "Cut", "Copy", "Move to Trash"].allSatisfy(treeMenu.contains),
+               ["New Folder", "Rename…", "Cut", "Copy", "Copy Path", "Move to Trash"].allSatisfy(treeMenu.contains),
                "got \(treeMenu)")
         let depthA = treeRoot.appendingPathComponent("depthA")
         liveSidebar.highlight(url: depthA)

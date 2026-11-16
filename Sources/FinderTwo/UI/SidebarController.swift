@@ -494,8 +494,17 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         }
     }
 
-    /// FileActionLog posts on the main thread.
-    @objc private func fileActionDidHappen() { rescanOpenFolders() }
+    /// One rescan per burst of file actions (a copy of 500 files logs 500
+    /// times), and only for a sidebar in a window.
+    private var rescanPending = false
+    @objc private func fileActionDidHappen() {
+        guard !rescanPending, view.window != nil else { return }
+        rescanPending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.rescanPending = false
+            self?.rescanOpenFolders()
+        }
+    }
 
     /// Re-read the folders open in the tree; folders loaded but closed re-read
     /// when next opened.
@@ -643,6 +652,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         var items: [(String, Selector)] = [("New Folder", #selector(ctxTreeNewFolder(_:)))]
         if !isRoot { items += [("Rename…", #selector(ctxTreeRename(_:))), ("Cut", #selector(ctxTreeCut(_:)))] }
         items.append(("Copy", #selector(ctxTreeCopy(_:))))
+        items.append(("Copy Path", #selector(ctxTreeCopyPath(_:))))
         if NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: nil) {
             items.append(("Paste Into Folder", #selector(ctxTreePaste(_:))))
         }
@@ -670,6 +680,11 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         FileOps.clearCut()
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([u as NSURL])
+    }
+    @objc private func ctxTreeCopyPath(_ s: NSMenuItem) {
+        guard let u = s.representedObject as? URL else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(u.path, forType: .string)
     }
     @objc private func ctxTreePaste(_ s: NSMenuItem) {
         guard let u = s.representedObject as? URL else { return }
