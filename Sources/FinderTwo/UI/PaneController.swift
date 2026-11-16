@@ -289,13 +289,14 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
             fileList.view.trailingAnchor.constraint(equalTo: gitDiffView.leadingAnchor),
             fileList.view.bottomAnchor.constraint(equalTo: terminalView.topAnchor),
 
-            // Git Diff drawer sits between content and preview drawer
+            // Git Diff drawer sits right of the content. The preview panel floats
+            // OVER both (its faded top and bottom show the rows underneath).
             gitDiffView.topAnchor.constraint(equalTo: hotbar.bottomAnchor),
-            gitDiffView.trailingAnchor.constraint(equalTo: previewView.leadingAnchor),
+            gitDiffView.trailingAnchor.constraint(equalTo: notesView.leadingAnchor),
             gitDiffView.bottomAnchor.constraint(equalTo: terminalView.topAnchor),
             gitDiffWidthConstraint,
 
-            // Preview drawer sits between git diff drawer and notes drawer.
+            // Preview panel: over the right edge of the content, left of notes.
             previewView.topAnchor.constraint(equalTo: hotbar.bottomAnchor),
             previewView.trailingAnchor.constraint(equalTo: notesView.leadingAnchor),
             previewView.bottomAnchor.constraint(equalTo: terminalView.topAnchor),
@@ -799,11 +800,11 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     /// stopping at the notes drawer) — same frame the list view occupies.
     private func pinAlternate(_ v: NSView, in host: NSView) {
         v.translatesAutoresizingMaskIntoConstraints = false
-        host.addSubview(v)
+        host.addSubview(v, positioned: .below, relativeTo: previewView)   // the preview floats above
         NSLayoutConstraint.activate([
             v.topAnchor.constraint(equalTo: hotbar.bottomAnchor),
             v.leadingAnchor.constraint(equalTo: host.leadingAnchor),
-            v.trailingAnchor.constraint(equalTo: previewView.leadingAnchor),
+            v.trailingAnchor.constraint(equalTo: notesView.leadingAnchor),
             v.bottomAnchor.constraint(equalTo: statusBar.topAnchor),
         ])
     }
@@ -1298,6 +1299,16 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     var testPreviewURL: URL? { previewView.url }
     var testPreviewDetails: [String] { previewView.testDetails }
     var testPreviewView: PreviewDrawerView { previewView }
+    var testListFrame: NSRect { fileList.view.frame }
+    /// Width of the list's rows vs. the visible list width.
+    var testListRowsWidth: (rows: CGFloat, visible: CGFloat) {
+        (fileList.tableView.frame.width, fileList.tableView.enclosingScrollView?.contentView.bounds.width ?? 0)
+    }
+    var testPreviewIsAboveList: Bool {
+        let subs = view.subviews
+        guard let p = subs.firstIndex(of: previewView), let l = subs.firstIndex(of: fileList.view) else { return false }
+        return p > l
+    }
     func testClearSelection() { fileList.tableView.deselectAll(nil); syncSelectionFromList() }
     var testHotbarHeight: CGFloat { hotbarHeightConstraint.constant }
     var testToolbarTopInset: CGFloat { topInsetConstraint.constant }

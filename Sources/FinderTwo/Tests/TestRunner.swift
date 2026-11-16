@@ -2423,6 +2423,18 @@ final class TestRunner {
             let bf = pv.testBlockFrame
             assert("preview and details sit together, centred top to bottom",
                    abs(bf.midY - pv.bounds.midY) <= 2, "block \(bf) in \(pv.bounds)")
+            pane.view.layoutSubtreeIfNeeded()
+            let pvFrame = pv.frame
+            assert("preview panel floats over the list, so rows show through its faded parts",
+                   pane.testPreviewIsAboveList && pane.testListFrame.maxX >= pvFrame.maxX - 1,
+                   "above=\(pane.testPreviewIsAboveList) list=\(pane.testListFrame) panel=\(pvFrame)")
+            let rw = pane.testListRowsWidth
+            assert("list rows span the whole list, under the panel too",
+                   rw.rows >= rw.visible - 1, "rows \(rw.rows) visible \(rw.visible)")
+            let topCorner = NSPoint(x: pvFrame.midX, y: pvFrame.maxY - 2)   // pane coords, unflipped: top edge
+            let bottomCorner = NSPoint(x: pvFrame.midX, y: pvFrame.minY + 2)
+            assert("clicks on the faded parts reach the list",
+                   pv.hitTest(topCorner) == nil || pv.hitTest(bottomCorner) == nil, "panel swallows them")
             pv.layout()
             let stops = pv.testFadeStops
             let h = max(1, pv.bounds.height)
@@ -2430,6 +2442,12 @@ final class TestRunner {
                    stops.count == 4 && stops[0].1 == 0 && stops[3].1 == 0 && stops[1].1 == 1 && stops[2].1 == 1
                        && stops[1].0 <= bf.minY / h && stops[2].0 >= bf.maxY / h,
                    "stops \(stops) block \(bf) h \(h)")
+            // What is actually drawn, not just the settings: clear at the top
+            // edge, solid beside the preview.
+            let topAlpha = pv.testRenderedAlpha(at: NSPoint(x: 4, y: pv.bounds.maxY - 3))
+            let midAlpha = pv.testRenderedAlpha(at: NSPoint(x: 4, y: bf.midY))
+            assert("panel renders transparent at the top and solid by the preview",
+                   topAlpha >= 0 && topAlpha < 0.1 && midAlpha > 0.9, "top \(topAlpha) middle \(midAlpha)")
         } else {
             assert("preview test image listed", false, "pic.png missing")
         }

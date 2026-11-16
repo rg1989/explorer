@@ -204,6 +204,9 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
         tableView.allowsEmptySelection = true
         tableView.allowsColumnReordering = true
         tableView.allowsColumnResizing = true
+        // The last column takes any spare width, so rows (stripes, selection)
+        // span the whole list, including under the floating preview panel.
+        tableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         tableView.allowsColumnSelection = false
         tableView.usesAutomaticRowHeights = false
         tableView.target = self
