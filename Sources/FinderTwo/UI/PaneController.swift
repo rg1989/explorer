@@ -495,6 +495,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         // alternate view so Enter / vim `l` open the focused item there too.
         if viewMode == .icon { iconVC?.openSelected(); return }
         if viewMode == .gallery { galleryVC?.openFocused(); return }
+        if viewMode == .columns { columnVC?.openSelected(); return }
         let sel = fileList.selectedItems()
         if sel.isEmpty { NSSound.beep(); return }
         // Route through the same handler as double-click so folders enter,
@@ -507,7 +508,54 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     }
 
     func beginRenameSelection() {
-        fileList.beginRenameSelection()
+        if viewMode == .list { fileList.beginRenameSelection(); return }
+        // Icon, column and gallery views have no inline editor: ask for the name.
+        let sel = selectedURLs()
+        guard sel.count == 1 else { NSSound.beep(); return }
+        FileOps.promptRename(sel[0], in: view.window) { [weak self] _ in self?.reload() }
+    }
+
+    /// Where New Folder and Paste put things: the open folder, or in column view
+    /// the folder of the column you are working in.
+    var actionFolder: URL {
+        (viewMode == .columns ? columnVC?.activeFolder : nil) ?? currentURL
+    }
+
+    /// Right-click menu for the icon, column and gallery views (the list view
+    /// builds its own, longer one). It acts on the pane's selection, so the view
+    /// selects the clicked item first; an empty selection gives the folder menu.
+    func itemContextMenu() -> NSMenu {
+        let m = NSMenu()
+        m.autoenablesItems = false
+        let target = view.window?.windowController
+        let hasSelection = !selectedURLs().isEmpty
+        let canPaste = NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: nil)
+        func add(_ title: String, _ action: Selector, enabled: Bool = true) {
+            let it = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            it.target = target
+            it.isEnabled = enabled
+            m.addItem(it)
+        }
+        if hasSelection {
+            add("Open", #selector(BrowserWindowController.openSelection(_:)))
+            m.addItem(.separator())
+        }
+        add("New Folder", #selector(BrowserWindowController.newFolder(_:)))
+        m.addItem(.separator())
+        add("Cut", #selector(BrowserWindowController.cutFiles(_:)), enabled: hasSelection)
+        add("Copy", #selector(BrowserWindowController.copyFiles(_:)), enabled: hasSelection)
+        add("Paste", #selector(BrowserWindowController.pasteFiles(_:)), enabled: canPaste)
+        if hasSelection {
+            add("Duplicate", #selector(BrowserWindowController.duplicate(_:)))
+            add("Rename…", #selector(BrowserWindowController.renameSelection(_:)),
+                enabled: selectedURLs().count == 1)
+        }
+        add("Get Info", #selector(BrowserWindowController.getInfo(_:)))
+        if hasSelection {
+            m.addItem(.separator())
+            add("Move to Trash", #selector(BrowserWindowController.moveToTrash(_:)))
+        }
+        return m
     }
 
     func commitInlineRename(to newName: String) {
@@ -775,6 +823,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
             self?.selection.replace(with: urls, focusedURL: urls.first)
             self?.updateStatus()
         }
+        col.menuProvider = { [weak self] in self?.itemContextMenu() }
         addChild(col)
         pinAlternate(col.view, in: host)
         columnVC = col
@@ -792,6 +841,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
             self?.selection.replace(with: items.map(\.url), focusedURL: items.first?.url)
             self?.updateStatus()
         }
+        icon.menuProvider = { [weak self] in self?.itemContextMenu() }
         icon.onDrop = { [weak self] urls, folder, isCopy in
             guard let self else { return }
             let dest = folder?.url ?? self.currentURL
@@ -815,6 +865,10 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
             self?.selection.replace(with: items.map(\.url), focusedURL: items.first?.url)
             self?.updateStatus()
         }
+        let galleryMenu = NSMenu()
+        galleryMenu.autoenablesItems = false
+        galleryMenu.delegate = self   // filled per right-click, for the focused item
+        gallery.view.menu = galleryMenu
         pinAlternate(gallery.view, in: host)
         galleryVC = gallery
         gallery.reload(activeTab.model.items, preserving: selection.urls)
@@ -850,9 +904,11 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     func createNewFolder() {
         let created = SFTPLocation.isRemote(currentURL)
             ? RemoteFileOps.newFolder(in: currentURL)
-            : FileOps.newFolder(in: currentURL)
+            : FileOps.newFolder(in: actionFolder)
         guard let url = created else { NSSound.beep(); return }
-        fileList.queueReveal(url, rename: true); reload()
+        if viewMode == .list { fileList.queueReveal(url, rename: true); reload(); return }
+        reload()
+        FileOps.promptRename(url, in: view.window) { [weak self] _ in self?.reload() }
     }
 
     /// Test hook: create a folder and reveal it via a SYNCHRONOUS reload, so the
@@ -917,7 +973,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         let pb = NSPasteboard.general
         let move = FileOps.consumeCutFlag(for: pb)
         if pasteRemote(from: pb, move: move) { return }
-        FileOps.paste(pb, into: currentURL, move: move, from: view.window)
+        FileOps.paste(pb, into: actionFolder, move: move, from: view.window)
     }
 
     /// Paste file URLs from pasteboard into current directory (move semantics).
@@ -1233,6 +1289,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     }
     var testFileList: FileListController { fileList }
     var testColumnVC: ColumnViewController? { columnVC }
+    var testIconVC: IconViewController? { iconVC }
     var testToolbarVisible: Bool { !toolbar.isHidden }
     var testHotbarVisible: Bool { !hotbar.isHidden }
     var testTabStripVisible: Bool { !tabStrip.isHidden }
@@ -1277,4 +1334,15 @@ private final class PaneRootView: NSView, ThemeObserving {
         layer?.backgroundColor = ThemeManager.shared.current.toolbarBackground.cgColor
     }
     deinit { NotificationCenter.default.removeObserver(self) }
+}
+
+extension PaneController: NSMenuDelegate {
+    /// The gallery's right-click menu, rebuilt each time for the focused item.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let built = itemContextMenu()
+        let items = built.items
+        built.removeAllItems()
+        items.forEach(menu.addItem)
+    }
 }

@@ -61,6 +61,15 @@ final class SidebarOutlineView: NSOutlineView {
     }
 }
 
+/// 1 pt line between the places column and the folder tree.
+private final class ColumnDivider: NSView {
+    override var intrinsicContentSize: NSSize { NSSize(width: 1, height: NSView.noIntrinsicMetric) }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.separatorColor.setFill()
+        bounds.fill()
+    }
+}
+
 final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, ThemeObserving, NSMenuDelegate {
 
     private static let favoritePasteboardType = NSPasteboard.PasteboardType(
@@ -80,24 +89,15 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     let outline = SidebarOutlineView()
     private let scrollView = NSScrollView()
 
-    /// Favorites sit in their own strip pinned above the scrolling list, so they
-    /// stay in view however far the folder tree scrolls. The strip is a second
-    /// SidebarController that shows only that section; this one shows the rest.
-    // ponytail: the strip builds every section and keeps one; split the
-    // builders if sidebar reloads ever show up in a profile.
+    /// Finder-style places (Favorites, Locations, Smart Folders, Tags) live in
+    /// their own column left of the folder tree, so both stay in view however
+    /// deep the tree goes. That column is a second SidebarController that shows
+    /// every section except Folders; this one shows only Folders.
+    // ponytail: the places column builds every section and keeps its own; split
+    // the builders if sidebar reloads ever show up in a profile.
     private var isPinnedFavorites = false
     private var pinned: SidebarController?
-    private var pinnedHeightConstraint: NSLayoutConstraint?
-    private var onContentHeightChange: ((CGFloat) -> Void)?
-
-    /// Tell the host how tall the pinned strip's rows are.
-    private func reportContentHeight() {
-        guard isPinnedFavorites else { return }
-        let rows = outline.numberOfRows
-        onContentHeightChange?(rows > 0 ? outline.rect(ofRow: rows - 1).maxY + 6 : 0)
-    }
-    func outlineViewItemDidExpand(_ notification: Notification) { reportContentHeight() }
-    func outlineViewItemDidCollapse(_ notification: Notification) { reportContentHeight() }
+    static let placesColumnWidth: CGFloat = 170
 
     private final class Section {
         let title: String
@@ -183,6 +183,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         /// Drop cached children so the next expansion re-scans (used when the
         /// "Show Hidden Files" setting flips, which changes what's visible).
         func invalidateChildren() { children = nil }
+
+        /// Re-scan a loaded node, keeping the existing child objects (and so
+        /// their expanded subtrees) for folders that are still there.
+        func rescan() {
+            guard let old = children else { return }
+            children = nil
+            let byPath = Dictionary(old.map { ($0.url.standardizedFileURL.path, $0) },
+                                    uniquingKeysWith: { first, _ in first })
+            children = loadChildrenIfNeeded().map { byPath[$0.url.standardizedFileURL.path] ?? $0 }
+        }
     }
 
     private var sections: [Section] = []
@@ -210,7 +220,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         var all = base
         if let tags = tagsSection { all.append(tags) }
         all = all.filter { !$0.items.isEmpty || $0.title == SidebarController.foldersSectionTitle }
-        all = all.filter { ($0.title == "Favorites") == isPinnedFavorites }
+        all = all.filter { ($0.title == SidebarController.foldersSectionTitle) != isPinnedFavorites }
         let order = SidebarLayout.orderedSectionTitles(available: all.map(\.title))
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         sections = all.sorted {
@@ -229,7 +239,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     private var locationsSection: Section? { sections.first { $0.title == "Locations" } }
     private var foldersSection: Section? { sections.first { $0.title == SidebarController.foldersSectionTitle } }
     private var favoriteURLs: [URL] { (favoritesSection ?? pinned?.favoritesSection)?.items.map(\.url) ?? [] }
-    private var locationURLs: [URL] { locationsSection?.items.map(\.url) ?? [] }
+    private var locationURLs: [URL] { (locationsSection ?? pinned?.locationsSection)?.items.map(\.url) ?? [] }
     private var folderRootURLs: [URL] { foldersSection?.treeRoots?.map(\.url) ?? [] }
     private func containsFavorite(_ url: URL) -> Bool {
         let path = url.standardizedFileURL.path
@@ -262,14 +272,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         }
         // A reload folds the tree; open it again down to the current folder.
         if let url = selectedURL { highlight(url: url, scroll: false) }
-        reportContentHeight()
     }
 
     var testEntryTitles: [String] {
         (pinned?.testEntryTitles ?? []) + sections.flatMap { $0.items.map { $0.title } }
     }
     var testPinnedSectionTitles: [String] { pinned?.sections.map(\.title) ?? [] }
-    var testPinnedHeight: CGFloat { pinnedHeightConstraint?.constant ?? -1 }
+    /// Frames in the sidebar's coordinates: places column, then folder tree.
+    var testColumnFrames: (places: NSRect, tree: NSRect) {
+        (pinned?.view.frame ?? .zero, scrollView.frame)
+    }
     var testSectionTitles: [String] { sections.map(\.title) }
     var testLocationURLs: [URL] { locationURLs }
     var testFolderRootURLs: [URL] { folderRootURLs }
@@ -285,25 +297,26 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     }
 
     func testSetSection(_ title: String, expanded: Bool) {
-        if title == "Favorites", let pinned { return pinned.testSetSection(title, expanded: expanded) }
+        if title != SidebarController.foldersSectionTitle, let pinned { return pinned.testSetSection(title, expanded: expanded) }
         guard let section = sections.first(where: { $0.title == title }) else { return }
         if expanded { outline.expandItem(section) }
         else { outline.collapseItem(section) }
     }
     func testIsSectionExpanded(_ title: String) -> Bool {
-        if title == "Favorites", let pinned { return pinned.testIsSectionExpanded(title) }
+        if title != SidebarController.foldersSectionTitle, let pinned { return pinned.testIsSectionExpanded(title) }
         guard let section = sections.first(where: { $0.title == title }) else { return false }
         return outline.isItemExpanded(section)
     }
     func testReloadBookmarks() { bookmarksChanged() }
     func testCanDragFirstEntry(in sectionTitle: String) -> Bool {
-        if sectionTitle == "Favorites", let pinned { return pinned.testCanDragFirstEntry(in: sectionTitle) }
+        if sectionTitle != SidebarController.foldersSectionTitle, let pinned { return pinned.testCanDragFirstEntry(in: sectionTitle) }
         guard let entry = sections.first(where: { $0.title == sectionTitle })?.items.first else {
             return false
         }
         return outlineView(outline, pasteboardWriterForItem: entry) != nil
     }
     func testCanDragSection(_ title: String) -> Bool {
+        if title != SidebarController.foldersSectionTitle, let pinned { return pinned.testCanDragSection(title) }
         guard let section = sections.first(where: { $0.title == title }) else { return false }
         return outlineView(outline, pasteboardWriterForItem: section) != nil
     }
@@ -345,6 +358,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     /// Inset the source-list rows from the top (used to clear the traffic
     /// lights when the window title bar is hidden).
     func setTopInset(_ inset: CGFloat) {
+        pinned?.setTopInset(inset)
         scrollTopConstraint?.constant = inset
     }
     var testTopInset: CGFloat { scrollTopConstraint?.constant ?? -1 }
@@ -382,32 +396,36 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             strip.view.translatesAutoresizingMaskIntoConstraints = false
             v.addSubview(strip.view)
             pinned = strip
-            let height = strip.view.heightAnchor.constraint(equalToConstant: 0)
-            height.priority = .defaultHigh
-            pinnedHeightConstraint = height
-            strip.onContentHeightChange = { [weak self] in self?.pinnedHeightConstraint?.constant = $0 }
-            scrollTopConstraint = strip.view.topAnchor.constraint(equalTo: v.topAnchor)
+            // Not an NSBox separator: its built-in height pulled the window down to 50 pt.
+            let divider = ColumnDivider()
+            divider.translatesAutoresizingMaskIntoConstraints = false
+            v.addSubview(divider)
+            // The places column keeps its width; the tree takes what is left.
+            let width = strip.view.widthAnchor.constraint(equalToConstant: SidebarController.placesColumnWidth)
+            width.priority = .defaultHigh
             NSLayoutConstraint.activate([
+                strip.view.topAnchor.constraint(equalTo: v.topAnchor),
+                strip.view.bottomAnchor.constraint(equalTo: v.bottomAnchor),
                 strip.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-                strip.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-                height,
-                // A long list scrolls inside the strip; the tree keeps half the pane.
-                strip.view.heightAnchor.constraint(lessThanOrEqualTo: v.heightAnchor, multiplier: 0.5),
-                scrollView.topAnchor.constraint(equalTo: strip.view.bottomAnchor),
+                width,
+                strip.view.widthAnchor.constraint(lessThanOrEqualTo: v.widthAnchor, multiplier: 0.5),
+                divider.topAnchor.constraint(equalTo: v.topAnchor),
+                divider.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+                divider.leadingAnchor.constraint(equalTo: strip.view.trailingAnchor),
+                divider.widthAnchor.constraint(equalToConstant: 1),
+                scrollView.leadingAnchor.constraint(equalTo: divider.trailingAnchor),
             ])
-            strip.reportContentHeight()
         } else {
-            scrollView.verticalScrollElasticity = .none
             scrollView.autohidesScrollers = true
-            scrollTopConstraint = scrollView.topAnchor.constraint(equalTo: v.topAnchor)
+            scrollView.leadingAnchor.constraint(equalTo: v.leadingAnchor).isActive = true
         }
+        scrollTopConstraint = scrollView.topAnchor.constraint(equalTo: v.topAnchor)
         NSLayoutConstraint.activate([
             tintView.topAnchor.constraint(equalTo: v.topAnchor),
             tintView.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             tintView.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             tintView.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             scrollTopConstraint,
-            scrollView.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: v.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: v.bottomAnchor),
         ])
@@ -459,7 +477,6 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         for s in sections { outline.expandItem(s) }
         // The first folder can arrive before this view exists.
         if let url = selectedURL { highlight(url: url) }
-        reportContentHeight()
 
         NotificationCenter.default.addObserver(self, selector: #selector(bookmarksChanged),
                                                name: SidebarBookmarks.didChange, object: nil)
@@ -470,7 +487,34 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         NotificationCenter.default.addObserver(self, selector: #selector(settingsChanged),
                                                name: Settings.didChange, object: nil)
         lastShowHiddenDefault = Settings.showHiddenByDefault
+        if !isPinnedFavorites {
+            // New folder, rename, move, copy and trash all log here: show the change.
+            NotificationCenter.default.addObserver(self, selector: #selector(fileActionDidHappen),
+                                                   name: FileActionLog.didChange, object: nil)
+        }
     }
+
+    /// FileActionLog posts on the main thread.
+    @objc private func fileActionDidHappen() { rescanOpenFolders() }
+
+    /// Re-read the folders open in the tree; folders loaded but closed re-read
+    /// when next opened.
+    private func rescanOpenFolders() {
+        func walk(_ nodes: [TreeNode]) {
+            for n in nodes where n.isLoaded {
+                if outline.isItemExpanded(n) {
+                    n.rescan()
+                    outline.reloadItem(n, reloadChildren: true)
+                    walk(n.children ?? [])
+                } else {
+                    n.invalidateChildren()
+                }
+            }
+        }
+        walk(treeRoots)
+        if let url = selectedURL { highlight(url: url, scroll: false) }
+    }
+    func testRescanOpenFolders() { rescanOpenFolders() }
 
     @objc private func bookmarksChanged() {
         reloadPreservingSectionExpansion { buildSections() }
@@ -533,6 +577,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                 let add = NSMenuItem(title: "Add to Favorites", action: #selector(ctxAddBookmark(_:)), keyEquivalent: "")
                 add.target = self; add.representedObject = node.url; menu.addItem(add)
             }
+            addTreeFileActions(to: menu, for: node)
             if SidebarLayout.isCustomFolderRoot(node.url),
                foldersSection?.treeRoots?.contains(where: { $0 === node }) == true {
                 let remove = NSMenuItem(title: "Remove from Folders",
@@ -564,6 +609,12 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             del.target = self; del.representedObject = entry.url; menu.addItem(del)
             return
         }
+        if entry.url.standardizedFileURL.path == SidebarController.trashURL.standardizedFileURL.path {
+            menu.addItem(.separator())
+            let empty = NSMenuItem(title: "Empty Trash…", action: #selector(ctxEmptyTrash(_:)), keyEquivalent: "")
+            empty.target = self; menu.addItem(empty)
+            return
+        }
         if SidebarLayout.isCustomLocation(entry.url) {
             menu.addItem(.separator())
             let remove = NSMenuItem(title: "Remove from Locations",
@@ -585,6 +636,64 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             item.target = self; item.representedObject = entry.url; menu.addItem(item)
         }
     }
+    /// File actions on a tree folder: the same ones the file views offer.
+    /// Home and volume roots can't be renamed or trashed from here.
+    private func addTreeFileActions(to menu: NSMenu, for node: TreeNode) {
+        let isRoot = treeRoots.contains { $0 === node }
+        var items: [(String, Selector)] = [("New Folder", #selector(ctxTreeNewFolder(_:)))]
+        if !isRoot { items += [("Rename…", #selector(ctxTreeRename(_:))), ("Cut", #selector(ctxTreeCut(_:)))] }
+        items.append(("Copy", #selector(ctxTreeCopy(_:))))
+        if NSPasteboard.general.canReadObject(forClasses: [NSURL.self], options: nil) {
+            items.append(("Paste Into Folder", #selector(ctxTreePaste(_:))))
+        }
+        if !isRoot { items.append(("Move to Trash", #selector(ctxTreeTrash(_:)))) }
+        menu.addItem(.separator())
+        for (title, action) in items {
+            let it = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            it.target = self; it.representedObject = node.url
+            menu.addItem(it)
+        }
+    }
+    @objc private func ctxTreeNewFolder(_ s: NSMenuItem) {
+        guard let u = s.representedObject as? URL, let made = FileOps.newFolder(in: u) else { return }
+        FileOps.promptRename(made, in: view.window) { _ in }
+    }
+    @objc private func ctxTreeRename(_ s: NSMenuItem) {
+        guard let u = s.representedObject as? URL else { return }
+        FileOps.promptRename(u, in: view.window) { _ in }
+    }
+    @objc private func ctxTreeCut(_ s: NSMenuItem) {
+        if let u = s.representedObject as? URL { FileOps.markCut([u], to: .general) }
+    }
+    @objc private func ctxTreeCopy(_ s: NSMenuItem) {
+        guard let u = s.representedObject as? URL else { return }
+        FileOps.clearCut()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([u as NSURL])
+    }
+    @objc private func ctxTreePaste(_ s: NSMenuItem) {
+        guard let u = s.representedObject as? URL else { return }
+        let pb = NSPasteboard.general
+        FileOps.paste(pb, into: u, move: FileOps.consumeCutFlag(for: pb), from: view.window)
+    }
+    @objc private func ctxTreeTrash(_ s: NSMenuItem) {
+        if let u = s.representedObject as? URL { FileOps.trashWithConfirmation([u]) }
+    }
+    /// Test hook: titles of the right-click menu for the tree folder at `url`.
+    func testTreeMenuTitles(for url: URL) -> [String] {
+        func find(_ nodes: [TreeNode]) -> TreeNode? {
+            for n in nodes {
+                if n.url.standardizedFileURL.path == url.standardizedFileURL.path { return n }
+                if let hit = find(n.children ?? []) { return hit }
+            }
+            return nil
+        }
+        guard let node = find(treeRoots) else { return [] }
+        let m = NSMenu()
+        addTreeFileActions(to: m, for: node)
+        return m.items.map(\.title).filter { !$0.isEmpty }
+    }
+
     @objc private func ctxOpenNewTab(_ s: NSMenuItem) { if let u = s.representedObject as? URL { onOpenInNewTab?(u) } }
     @objc private func ctxOpenNewPane(_ s: NSMenuItem) { if let u = s.representedObject as? URL { onOpenInNewPane?(u) } }
     @objc private func ctxOpenNewWindow(_ s: NSMenuItem) { if let u = s.representedObject as? URL { onOpenInNewWindow?(u) } }
@@ -600,6 +709,15 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         if let u = s.representedObject as? URL { SidebarLayout.removeFolderRoot(u) }
     }
     @objc private func ctxResetFavorites(_ s: NSMenuItem) { SidebarBookmarks.resetCustomization() }
+    @objc private func ctxEmptyTrash(_ s: NSMenuItem) {
+        let alert = NSAlert()
+        alert.messageText = "Empty the Trash?"
+        alert.informativeText = "Items in the Trash are deleted permanently. This can't be undone."
+        alert.addButton(withTitle: "Empty Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        FileOps.emptyTrash()
+    }
     @objc private func ctxRevealFavorite(_ s: NSMenuItem) {
         if let u = s.representedObject as? URL { FileOps.revealInFinder([u]) }
     }
@@ -654,7 +772,6 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         outline.reloadData()
         // reloadData drops the selection: keep the open folder marked.
         if let url = selectedURL { highlight(url: url, scroll: false) }
-        reportContentHeight()
     }
 
     /// Test hook: the surface the sidebar actually renders (the outline's own
@@ -800,6 +917,44 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         return icon
     }
 
+    static var iCloudDriveURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+    }
+    static var trashURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+    }
+
+    /// Finder's sidebar symbol for a Favorites or Locations row. A template image,
+    /// so the row tints it with the theme. Never reads the folder itself, so it
+    /// cannot trigger a privacy prompt.
+    static func placeIcon(for url: URL) -> NSImage {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        let known: [String: String] = [
+            "/Applications": "a.square",
+            home: "house",
+            home + "/Desktop": "menubar.dock.rectangle",
+            home + "/Documents": "doc",
+            home + "/Downloads": "arrow.down.circle",
+            home + "/Movies": "film",
+            home + "/Music": "music.note",
+            home + "/Pictures": "photo",
+            trashURL.standardizedFileURL.path: "trash",
+            iCloudDriveURL.standardizedFileURL.path: "icloud",
+            "/": "internaldrive",
+        ]
+        var isDir: ObjCBool = true
+        _ = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+        let name = known[path]
+            ?? (path.hasPrefix("/Volumes/") ? "externaldrive" : (isDir.boolValue ? "folder" : "doc"))
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) ?? NSImage()
+        img.isTemplate = true
+        return img
+    }
+
     /// (Re)build folder-tree roots from Home, mounted volumes, and user-pinned
     /// folders. Only roots are created here; their children remain lazy.
     private func buildTreeRoots() {
@@ -846,14 +1001,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         func makeEntry(_ title: String, _ path: String, fallback: NSImage.Name) -> Entry? {
             let url = URL(fileURLWithPath: path)
             guard fm.fileExists(atPath: url.path) else { return nil }
-            let icon: NSImage
-            if !PermissionsManager.hasFullDiskAccess && PermissionsManager.isProtectedPath(url.path) {
-                icon = NSWorkspace.shared.icon(for: .folder)
-            } else {
-                icon = NSWorkspace.shared.icon(forFile: url.path)
-            }
-            icon.size = NSSize(width: 16, height: 16)
-            return Entry(title: title, url: url, icon: icon)
+            return Entry(title: title, url: url, icon: SidebarController.placeIcon(for: url))
         }
 
         var defaultFavs: [Entry] = []
@@ -877,13 +1025,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         var favoritesByPath = Dictionary(uniqueKeysWithValues:
             defaultFavs.map { ($0.url.standardizedFileURL.path, $0) })
         for url in SidebarBookmarks.all() where fm.fileExists(atPath: url.path) {
-            let icon: NSImage
-            if !PermissionsManager.hasFullDiskAccess && PermissionsManager.isProtectedPath(url.path) {
-                icon = NSWorkspace.shared.icon(for: .folder)
-            } else {
-                icon = NSWorkspace.shared.icon(forFile: url.path)
-            }
-            icon.size = NSSize(width: 16, height: 16)
+            let icon = SidebarController.placeIcon(for: url)
             let name = url.path == "/" ? "Macintosh HD" : url.lastPathComponent
             favoritesByPath[url.standardizedFileURL.path] = Entry(title: name, url: url, icon: icon)
         }
@@ -911,15 +1053,15 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                     || (!isRoot && v.path.hasPrefix("/Volumes/") && rv.volumeIsInternal != true)
                 guard isRoot || isUserMount else { continue }
                 let name = rv.volumeName ?? v.lastPathComponent
-                let icon: NSImage
-                if !PermissionsManager.hasFullDiskAccess && PermissionsManager.isProtectedPath(v.path) {
-                    icon = NSWorkspace.shared.icon(for: .folder)
-                } else {
-                    icon = NSWorkspace.shared.icon(forFile: v.path)
-                }
-                icon.size = NSSize(width: 16, height: 16)
-                defaultLocations.append(Entry(title: name, url: v, icon: icon))
+                defaultLocations.append(Entry(title: name, url: v, icon: SidebarController.placeIcon(for: v)))
             }
+        }
+        // Finder's other two places.
+        if let e = makeEntry("iCloud Drive", SidebarController.iCloudDriveURL.path, fallback: NSImage.folderName) {
+            defaultLocations.append(e)
+        }
+        if let e = makeEntry("Trash", SidebarController.trashURL.path, fallback: NSImage.folderName) {
+            defaultLocations.append(e)
         }
         var locationsByPath = Dictionary(uniqueKeysWithValues:
             defaultLocations.map { ($0.url.standardizedFileURL.path, $0) })

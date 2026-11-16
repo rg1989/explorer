@@ -14,7 +14,9 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
     var onDrop: (([URL], FileItem?, Bool) -> Void)?
 
     private let scroll = NSScrollView()
-    private let collection = NSCollectionView()
+    private let collection = IconCollectionView()
+    /// Builds the right-click menu once the clicked item is selected.
+    var menuProvider: (() -> NSMenu?)?
     private static let itemId = NSUserInterfaceItemIdentifier("IconGridItem")
 
     override func loadView() {
@@ -59,8 +61,40 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
         dbl.delaysPrimaryMouseButtonEvents = false
         collection.addGestureRecognizer(dbl)
 
+        collection.menuForEvent = { [weak self] event in self?.contextMenu(for: event) }
+
         applyTheme()
         subscribeToTheme(self)
+    }
+
+    /// Finder behaviour: right-clicking an item selects it (keeping a multi-
+    /// selection that already includes it); right-clicking empty space clears
+    /// the selection, which gives the folder menu.
+    private func contextMenu(for event: NSEvent) -> NSMenu? {
+        let pt = collection.convert(event.locationInWindow, from: nil)
+        if let ip = collection.indexPathForItem(at: pt) {
+            if !collection.selectionIndexPaths.contains(ip) {
+                collection.deselectAll(nil)
+                collection.selectItems(at: [ip], scrollPosition: [])
+            }
+        } else {
+            collection.deselectAll(nil)
+        }
+        reportSelection()
+        return menuProvider?()
+    }
+    /// Test hook: the menu a right-click at this item (or empty space) shows.
+    func testContextMenu(atItem index: Int?) -> NSMenu? {
+        let pt: NSPoint
+        if let index, let attrs = collection.layoutAttributesForItem(at: IndexPath(item: index, section: 0)) {
+            pt = NSPoint(x: attrs.frame.midX, y: attrs.frame.midY)
+        } else {
+            pt = NSPoint(x: collection.bounds.maxX - 2, y: collection.bounds.maxY - 2)
+        }
+        guard let ev = NSEvent.mouseEvent(with: .rightMouseDown, location: collection.convert(pt, to: nil),
+                                          modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                          eventNumber: 0, clickCount: 1, pressure: 1) else { return nil }
+        return contextMenu(for: ev)
     }
 
     func reload(_ items: [FileItem], preserving preferredSelection: [URL]? = nil) {
@@ -189,6 +223,12 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
         let sel = collection.selectionIndexPaths.compactMap { items.indices.contains($0.item) ? items[$0.item] : nil }
         onSelectionChange?(sel)
     }
+}
+
+/// Hands right-clicks to the controller, which selects the clicked item first.
+private final class IconCollectionView: NSCollectionView {
+    var menuForEvent: ((NSEvent) -> NSMenu?)?
+    override func menu(for event: NSEvent) -> NSMenu? { menuForEvent?(event) ?? super.menu(for: event) }
 }
 
 /// One icon-grid cell: a 48pt icon above a centered, two-line name label.

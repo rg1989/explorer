@@ -6,6 +6,9 @@ import AppKit
 /// the window. Returning noIntrinsicMetric decouples column count from layout
 /// size; the browser fills its host via edge constraints and scrolls instead.
 private final class FixedWidthBrowser: NSBrowser {
+    /// Right-clicks go to the controller, which selects the clicked row first.
+    var menuForEvent: ((NSEvent) -> NSMenu?)?
+    override func menu(for event: NSEvent) -> NSMenu? { menuForEvent?(event) ?? super.menu(for: event) }
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
     }
@@ -73,10 +76,79 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
         host.addSubview(browser)
         self.view = host
 
+        browser.menuForEvent = { [weak self] event in self?.contextMenu(for: event) }
+        // Copy, move, rename, trash and new folder all log here; re-read the open
+        // columns so they show the change.
+        NotificationCenter.default.addObserver(self, selector: #selector(fileActionDidHappen),
+                                               name: FileActionLog.didChange, object: nil)
+
         applyTheme()
         subscribeToTheme(self)
         reload()
     }
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    /// FileActionLog posts on the main thread.
+    @objc private func fileActionDidHappen() { refresh() }
+
+    /// Re-read every open column, keeping the path of single selections open.
+    func refresh() {
+        guard pane != nil, browser.lastColumn >= 0 else { return }
+        var path: [URL] = []
+        for c in 0...browser.lastColumn {
+            guard let dir = folder(forColumn: c) else { break }
+            let rows = browser.selectedRowIndexes(inColumn: c) ?? IndexSet()
+            let kids = entries(in: dir)
+            guard rows.count == 1, let r = rows.first, kids.indices.contains(r) else { break }
+            path.append(kids[r].url)
+        }
+        entryCache.removeAll()
+        browser.loadColumnZero()
+        for (c, url) in path.enumerated() {
+            guard let dir = folder(forColumn: c) else { break }
+            let kids = entries(in: dir)
+            guard let r = kids.firstIndex(where: { $0.url == url }) else { break }
+            browser.selectRow(r, inColumn: c)
+            if kids[r].isDir, browser.lastColumn == c { browser.addColumn() }
+        }
+        onSelectionChange?(selectedURLs())
+    }
+
+    /// Builds the right-click menu once the clicked row is selected.
+    var menuProvider: (() -> NSMenu?)?
+
+    /// Finder behaviour: right-clicking a row selects it unless it is already
+    /// part of the selection, then shows the item menu.
+    private func contextMenu(for event: NSEvent) -> NSMenu? {
+        var row = -1, col = -1
+        let pt = browser.convert(event.locationInWindow, from: nil)
+        if browser.getRow(&row, column: &col, for: pt), row >= 0, col >= 0 {
+            let selected = browser.selectedRowIndexes(inColumn: col) ?? IndexSet()
+            if browser.selectedColumn != col || !selected.contains(row) {
+                browser.selectRow(row, inColumn: col)
+                handleSelection()
+            }
+        }
+        return menuProvider?()
+    }
+    /// Test hook: the menu a right-click on this row shows.
+    func testContextMenu(row: Int, column: Int) -> NSMenu? {
+        let r = browser.frame(ofRow: row, inColumn: column)
+        guard let ev = NSEvent.mouseEvent(with: .rightMouseDown,
+                                          location: browser.convert(NSPoint(x: r.midX, y: r.midY), to: nil),
+                                          modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                                          eventNumber: 0, clickCount: 1, pressure: 1) else { return nil }
+        return contextMenu(for: ev)
+    }
+
+    /// The folder of the column holding the selection: where New Folder and
+    /// Paste land. The pane's folder when nothing is selected.
+    var activeFolder: URL? {
+        let col = browser.selectedColumn
+        return col >= 0 ? folder(forColumn: col) : pane?.currentURL
+    }
+
+    func openSelected() { handleDoubleClick() }
 
     override func viewDidLayout() {
         super.viewDidLayout()

@@ -32,6 +32,8 @@ final class TestRunner {
         let items = pane.testCurrentItems
         Snapshot.take(wc.window, "01-sandbox-loaded")
         assert("loads sandbox dir", items.count >= 4, "got \(items.count)")
+        assert("window keeps a usable height with the two-column sidebar",
+               (wc.window?.frame.height ?? 0) > 300, "height=\(wc.window?.frame.height ?? 0)")
 
         // --- T2: navigate into subdir ---
         let subURL = sandbox.appendingPathComponent("subdir")
@@ -835,6 +837,62 @@ final class TestRunner {
                    "got \(cols2)")
         }
         pane.setViewMode(.list)
+        pane.navigate(to: sandbox); pane.testReloadSync()
+
+        // --- T31e: item actions in the icon and column views ---
+        // Regression: only the list view had a right-click menu, so icon/column
+        // users had no New Folder / Cut / Copy / Paste / Rename / Trash.
+        let actRoot = sandbox.appendingPathComponent("itemacts")
+        let actSub = actRoot.appendingPathComponent("sub")
+        try? FileManager.default.createDirectory(at: actSub, withIntermediateDirectories: true)
+        try? "x".write(to: actRoot.appendingPathComponent("f.txt"), atomically: true, encoding: .utf8)
+        pane.navigate(to: actRoot); pane.testReloadSync()
+        pane.setViewMode(.icon)
+        wait(0.1)
+        if let ivc = pane.testIconVC {
+            let titles = ivc.testContextMenu(atItem: 0)?.items.map(\.title) ?? []
+            assert("icon view right-click shows the item actions",
+                   ["New Folder", "Cut", "Copy", "Paste", "Rename…", "Move to Trash"].allSatisfy(titles.contains),
+                   "got \(titles)")
+            assert("icon view right-click selects the clicked item",
+                   pane.selectedURLs().map(\.lastPathComponent) == ["sub"], "got \(pane.selectedURLs())")
+            let bg = ivc.testContextMenu(atItem: nil)?.items.map(\.title) ?? []
+            assert("icon view right-click on empty space gives the folder menu",
+                   bg.contains("New Folder") && !bg.contains("Move to Trash") && pane.selectedURLs().isEmpty,
+                   "got \(bg) sel=\(pane.selectedURLs())")
+        } else {
+            assert("icon view installed", false, "no icon view")
+        }
+        pane.setViewMode(.columns)
+        wait(0.1)
+        if let cvc = pane.testColumnVC {
+            let titles = cvc.testContextMenu(row: 0, column: 0)?.items.map(\.title) ?? []
+            assert("column view right-click shows the item actions",
+                   titles.contains("Rename…") && titles.contains("Move to Trash"), "got \(titles)")
+            assert("column view right-click selects the clicked row",
+                   pane.selectedURLs().map(\.lastPathComponent) == ["sub"], "got \(pane.selectedURLs())")
+            // Work inside "sub" (column 1): New Folder lands there, and the column shows it.
+            cvc.testClickRow(0, inColumn: 0)
+            wait(0.05)
+            assert("column view: New Folder targets the folder being worked in",
+                   pane.actionFolder.lastPathComponent == "itemacts", "got \(pane.actionFolder.path)")
+            _ = FileOps.newFolder(in: actSub, baseName: "made")
+            wait(0.1)
+            assert("column view refreshes after a file action, keeping the open folder",
+                   cvc.testVisibleTitles() == [["sub", "f.txt"], ["made"]], "got \(cvc.testVisibleTitles())")
+        }
+        pane.setViewMode(.list)
+        // Rename helper used by the icon/column/gallery views and the tree.
+        let renSrc = actRoot.appendingPathComponent("f.txt")
+        let renamed = FileOps.rename(renSrc, to: "g.txt")
+        assert("FileOps.rename renames in place",
+               renamed?.lastPathComponent == "g.txt"
+                   && FileManager.default.fileExists(atPath: actRoot.appendingPathComponent("g.txt").path),
+               "got \(String(describing: renamed))")
+        assert("FileOps.rename refuses a name that is taken",
+               FileOps.rename(actRoot.appendingPathComponent("g.txt"), to: "sub") == nil, "renamed onto a folder")
+        assert("FileOps.rename allows a case-only change",
+               FileOps.rename(actRoot.appendingPathComponent("g.txt"), to: "G.txt") != nil, "case-only refused")
         pane.navigate(to: sandbox); pane.testReloadSync()
 
         // --- T31c: case-only rename (report.txt → Report.txt) must work ---
@@ -2968,11 +3026,26 @@ final class TestRunner {
         assert("favorite reload preserves collapsed sidebar sections",
                !liveSidebar.testIsSectionExpanded("Locations"),
                "Locations expanded after Favorites reload")
-        assert("Favorites are pinned in their own strip above the scrolling list",
-               liveSidebar.testPinnedSectionTitles == ["Favorites"]
-                   && !liveSidebar.testSectionTitles.contains("Favorites")
-                   && liveSidebar.testPinnedHeight > 0,
-               "pinned=\(liveSidebar.testPinnedSectionTitles) list=\(liveSidebar.testSectionTitles) h=\(liveSidebar.testPinnedHeight)")
+        assert("Favorites and Locations sit in their own column; the tree column holds only Folders",
+               Array(liveSidebar.testPinnedSectionTitles.prefix(2)) == ["Favorites", "Locations"]
+                   && liveSidebar.testSectionTitles == [SidebarController.foldersSectionTitle],
+               "places=\(liveSidebar.testPinnedSectionTitles) tree=\(liveSidebar.testSectionTitles)")
+        liveSidebar.view.frame = NSRect(x: 0, y: 0, width: 440, height: 600)
+        liveSidebar.view.layoutSubtreeIfNeeded()
+        let colFrames = liveSidebar.testColumnFrames
+        assert("places column sits left of the folder tree, side by side",
+               colFrames.places.width == SidebarController.placesColumnWidth
+                   && colFrames.tree.minX >= colFrames.places.maxX
+                   && colFrames.tree.width > 200
+                   && colFrames.places.height == colFrames.tree.height,
+               "places=\(colFrames.places) tree=\(colFrames.tree)")
+        let trashURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+        assert("Locations include the Trash",
+               liveSidebar.testLocationURLs.contains { samePath($0, trashURL) },
+               "locations=\(liveSidebar.testLocationURLs.map(\.path))")
+        let downloadsIcon = SidebarController.placeIcon(for: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads"))
+        assert("Favorites use Finder's symbols (template images)",
+               downloadsIcon.isTemplate && downloadsIcon.size.width > 0, "size=\(downloadsIcon.size)")
         assert("sidebar categories and supported folder rows are draggable",
                liveSidebar.testCanDragSection("Locations")
                    && liveSidebar.testCanDragFirstEntry(in: "Favorites")
@@ -3023,6 +3096,19 @@ final class TestRunner {
         liveSidebar.testReloadBookmarks()
         assert("a favorites change keeps the sidebar scroll position (was \(Int(scrollBefore)), room \(Int(liveSidebar.testScrollRoom)))",
                abs(liveSidebar.testScrollY - scrollBefore) < 1, "now=\(liveSidebar.testScrollY)")
+        // Tree folders get the file actions, and the tree shows changes on its own.
+        let treeMenu = liveSidebar.testTreeMenuTitles(for: deep)
+        assert("tree folders have New Folder, Rename, Cut, Copy and Move to Trash",
+               ["New Folder", "Rename…", "Cut", "Copy", "Move to Trash"].allSatisfy(treeMenu.contains),
+               "got \(treeMenu)")
+        let depthA = treeRoot.appendingPathComponent("depthA")
+        liveSidebar.highlight(url: depthA)
+        _ = FileOps.newFolder(in: depthA, baseName: "fresh", recordUndo: false)
+        liveSidebar.testRescanOpenFolders()
+        liveSidebar.highlight(url: depthA.appendingPathComponent("fresh"))
+        assert("tree shows a new folder after a rescan",
+               liveSidebar.testSelectedURL.map { samePath($0, depthA.appendingPathComponent("fresh")) } == true,
+               "selected=\(liveSidebar.testSelectedURL?.path ?? "none")")
         SidebarLayout.removeFolderRoot(treeRoot)
     }
 

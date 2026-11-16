@@ -37,7 +37,7 @@ enum LayoutToken: String, CaseIterable {
         case .paletteWidth:      return 640
         case .paletteHeight:     return 440
         case .overlayRowHeight:  return 36
-        case .sidebarWidth:      return 280
+        case .sidebarWidth:      return 440   // places column + folder tree
         case .paneMinWidth:      return 360
         case .extraPaneMinWidth: return 280
         case .previewPaneWidth:  return 260

@@ -133,6 +133,46 @@ enum FileOps {
         }
     }
 
+    /// Rename an item in place. Nil for an empty name, a name with "/", a name
+    /// already taken (a case-only change is allowed), or a failed move.
+    @discardableResult
+    static func rename(_ url: URL, to newName: String) -> URL? {
+        if SFTPLocation.isRemote(url) { return RemoteFileOps.rename(url, to: newName) }
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !name.contains("/") else { return nil }
+        let dest = url.deletingLastPathComponent().appendingPathComponent(name)
+        if dest == url { return url }
+        let caseOnly = dest.path.lowercased() == url.path.lowercased()
+        if !caseOnly, FileManager.default.fileExists(atPath: dest.path) { return nil }
+        do { try FileManager.default.moveItem(at: url, to: dest) } catch { return nil }
+        FileActionLog.shared.recordMove(from: url, to: dest, name: "Rename")
+        return dest
+    }
+
+    /// Ask for a new name, then rename. For views without an inline editor
+    /// (icon, column, gallery, folder tree). `done` gets the new URL, or nil.
+    static func promptRename(_ url: URL, in window: NSWindow?, done: @escaping (URL?) -> Void) {
+        let field = NSTextField(string: url.lastPathComponent)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        let alert = NSAlert()
+        alert.messageText = "Rename “\(url.lastPathComponent)”"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .alertFirstButtonReturn else { return done(nil) }
+            let renamed = rename(url, to: field.stringValue)
+            if renamed == nil { NSSound.beep() }
+            done(renamed)
+        }
+        if let window {
+            alert.beginSheetModal(for: window, completionHandler: finish)
+        } else {
+            finish(alert.runModal())
+        }
+    }
+
     static func paste(_ pasteboard: NSPasteboard, into destination: URL, move: Bool, from window: NSWindow? = nil) {
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] else {
             NSSound.beep(); return
