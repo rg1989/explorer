@@ -183,6 +183,13 @@ enum Settings {
 
     /// Compute and show recursive folder sizes in the Size column (Finder's
     /// "Calculate all sizes"). Off by default — it's I/O-heavy.
+    /// Bundle id of the terminal app for "Open in Terminal"; nil picks iTerm if
+    /// installed, else Terminal (see TerminalApp).
+    static var terminalAppBundleID: String? {
+        get { d.string(forKey: "FinderTwo.terminalApp") }
+        set { d.set(newValue, forKey: "FinderTwo.terminalApp"); notify() }
+    }
+
     /// View ▸ Show Preview: a right-side panel with a preview and details of the
     /// selected item slides in while something is selected.
     static var showPreview: Bool {

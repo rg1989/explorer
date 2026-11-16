@@ -1116,7 +1116,7 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
         m.addItem(openWithSubmenuItem())
         m.addItem(NSMenuItem(title: "Quick Look", action: #selector(menuQuickLook), keyEquivalent: ""))
         m.addItem(NSMenuItem(title: "Reveal in Finder", action: #selector(menuReveal), keyEquivalent: ""))
-        m.addItem(NSMenuItem(title: "Open in Terminal", action: #selector(menuOpenTerm), keyEquivalent: ""))
+        m.addItem(NSMenuItem(title: TerminalApp.menuTitle, action: #selector(menuOpenTerm), keyEquivalent: ""))
         // "Open in Editor" → submenu of installed editors (built lazily so newly
         // installed editors appear without relaunch).
         let editorItem = NSMenuItem(title: "Open in Editor", action: nil, keyEquivalent: "")

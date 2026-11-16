@@ -945,40 +945,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
             }
             return pane.currentURL
         }()
-        // Try iTerm2, then default Terminal. Escape backslash FIRST, then the
-        // quote — otherwise a directory name containing a backslash or quote can
-        // break out of the AppleScript string and inject shell via `do script`.
-        // Control characters (esp. newline) can't be escaped inside an AppleScript
-        // string literal and would terminate it early, injecting statements — so a
-        // folder named with a newline + payload is refused outright.
-        guard !dir.path.unicodeScalars.contains(where: { $0.value < 0x20 }) else {
-            NSSound.beep(); return
-        }
-        let path = dir.path
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        let iterm = """
-        if application "iTerm" is running then
-            tell application "iTerm"
-                activate
-                set newWindow to create window with default profile
-                tell current session of newWindow to write text "cd \\"\(path)\\""
-            end tell
-            return "iterm"
-        end if
-        """
-        var err: NSDictionary?
-        let result = NSAppleScript(source: iterm)?.executeAndReturnError(&err)
-        if err == nil && result?.stringValue == "iterm" { return }
-        // Fallback: Apple Terminal
-        let terminal = """
-        tell application "Terminal"
-            activate
-            do script "cd \\"\(path)\\""
-        end tell
-        """
-        NSAppleScript(source: terminal)?.executeAndReturnError(&err)
-        if err != nil { NSSound.beep() }
+        TerminalApp.open(dir)
     }
 
     @objc func analyzeDiskUsage(_ sender: Any?) {

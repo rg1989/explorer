@@ -710,7 +710,8 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     /// Home and volume roots can't be renamed or trashed from here.
     private func addTreeFileActions(to menu: NSMenu, for node: TreeNode) {
         let isRoot = treeRoots.contains { $0 === node }
-        var items: [(String, Selector)] = [("New Folder", #selector(ctxTreeNewFolder(_:)))]
+        var items: [(String, Selector)] = [(TerminalApp.menuTitle, #selector(ctxTreeOpenTerminal(_:))),
+                                           ("New Folder", #selector(ctxTreeNewFolder(_:)))]
         if !isRoot { items += [("Rename…", #selector(ctxTreeRename(_:))), ("Cut", #selector(ctxTreeCut(_:)))] }
         items.append(("Copy", #selector(ctxTreeCopy(_:))))
         items.append(("Copy Path", #selector(ctxTreeCopyPath(_:))))
@@ -724,6 +725,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             it.target = self; it.representedObject = node.url
             menu.addItem(it)
         }
+    }
+    @objc private func ctxTreeOpenTerminal(_ s: NSMenuItem) {
+        if let u = s.representedObject as? URL { TerminalApp.open(u) }
     }
     @objc private func ctxTreeNewFolder(_ s: NSMenuItem) {
         guard let u = s.representedObject as? URL, let made = FileOps.newFolder(in: u) else { return }

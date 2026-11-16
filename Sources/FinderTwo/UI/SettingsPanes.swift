@@ -470,6 +470,25 @@ final class DeveloperPane: SettingsPane {
         shellStack.orientation = .horizontal
         shellStack.spacing = 8
         addRow("Terminal shell:", shellStack)
+
+        // "Open in Terminal" target app (only terminals that can open a folder).
+        let appPopup = NSPopUpButton()
+        appPopup.addItem(withTitle: "Automatic (iTerm if installed, else Terminal)")
+        for app in TerminalApp.installed {
+            appPopup.addItem(withTitle: app.name)
+            appPopup.lastItem?.representedObject = app.bundleID
+        }
+        if let id = Settings.terminalAppBundleID,
+           let item = appPopup.itemArray.first(where: { $0.representedObject as? String == id }) {
+            appPopup.select(item)
+        }
+        appPopup.target = self
+        appPopup.action = #selector(terminalAppChanged(_:))
+        addRow("Open folders in:", appPopup)
+    }
+
+    @objc private func terminalAppChanged(_ sender: NSPopUpButton) {
+        Settings.terminalAppBundleID = sender.selectedItem?.representedObject as? String
     }
 
     @objc private func devModeChanged(_ s: NSButton) {

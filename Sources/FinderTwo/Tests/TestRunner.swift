@@ -281,6 +281,21 @@ final class TestRunner {
         } else { assert("newFolderWithItems returns a folder", false, "nil") }
         assert("recursiveSize > 0 for a populated folder",
                FileListController.recursiveSize(foDir) > 0, "got \(FileListController.recursiveSize(foDir))")
+        // Terminal app for "Open in Terminal": the Settings choice wins, else iTerm, else Terminal.
+        let savedTerminal = Settings.terminalAppBundleID
+        assert("Terminal is offered (it opens folders)",
+               TerminalApp.installed.contains { $0.bundleID == "com.apple.Terminal" },
+               "installed=\(TerminalApp.installed.map(\.bundleID))")
+        Settings.terminalAppBundleID = "com.apple.Terminal"
+        assert("the terminal picked in Settings is used",
+               TerminalApp.preferred?.bundleID == "com.apple.Terminal" && TerminalApp.menuTitle == "Open in Terminal",
+               "got \(TerminalApp.preferred?.bundleID ?? "nil")")
+        Settings.terminalAppBundleID = nil
+        let hasITerm = TerminalApp.installed.contains { $0.bundleID == "com.googlecode.iterm2" }
+        assert("automatic choice prefers iTerm when installed",
+               TerminalApp.preferred?.bundleID == (hasITerm ? "com.googlecode.iterm2" : "com.apple.Terminal"),
+               "got \(TerminalApp.preferred?.bundleID ?? "nil")")
+        Settings.terminalAppBundleID = savedTerminal
         // Folder sizes: on by default, and dropped (so measured again) after a file action.
         let sizeKey = "FinderTwo.calculateFolderSizes"
         let savedSizePref = UserDefaults.standard.object(forKey: sizeKey)
@@ -896,7 +911,8 @@ final class TestRunner {
         if let ivc = pane.testIconVC {
             let titles = ivc.testContextMenu(atItem: 0)?.items.map(\.title) ?? []
             assert("icon view right-click shows the item actions",
-                   ["New Folder", "Cut", "Copy", "Paste", "Copy Path", "Rename…", "Move to Trash"].allSatisfy(titles.contains),
+                   ["New Folder", "Cut", "Copy", "Paste", "Copy Path", "Rename…", "Move to Trash",
+                    TerminalApp.menuTitle].allSatisfy(titles.contains),
                    "got \(titles)")
             assert("icon view right-click selects the clicked item",
                    pane.selectedURLs().map(\.lastPathComponent) == ["sub"], "got \(pane.selectedURLs())")
@@ -3198,7 +3214,8 @@ final class TestRunner {
         // Tree folders get the file actions, and the tree shows changes on its own.
         let treeMenu = liveSidebar.testTreeMenuTitles(for: deep)
         assert("tree folders have New Folder, Rename, Cut, Copy and Move to Trash",
-               ["New Folder", "Rename…", "Cut", "Copy", "Copy Path", "Move to Trash"].allSatisfy(treeMenu.contains),
+               ["New Folder", "Rename…", "Cut", "Copy", "Copy Path", "Move to Trash",
+                TerminalApp.menuTitle].allSatisfy(treeMenu.contains),
                "got \(treeMenu)")
         let depthA = treeRoot.appendingPathComponent("depthA")
         liveSidebar.highlight(url: depthA)

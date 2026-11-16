@@ -533,8 +533,9 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         }
         if hasSelection {
             add("Open", #selector(BrowserWindowController.openSelection(_:)))
-            m.addItem(.separator())
         }
+        add(TerminalApp.menuTitle, #selector(BrowserWindowController.openInTerminal(_:)))
+        m.addItem(.separator())
         add("New Folder", #selector(BrowserWindowController.newFolder(_:)))
         m.addItem(.separator())
         add("Cut", #selector(BrowserWindowController.cutFiles(_:)), enabled: hasSelection)
