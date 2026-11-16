@@ -803,6 +803,40 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31d: clicking folders in column view shows each folder once ---
+        // Regression: NSBrowser adds the next column on a folder click by itself and
+        // our action added another one, so a blank column of arrow rows appeared, and
+        // a column could keep the row count of a different folder (blank rows).
+        let cRoot = sandbox.appendingPathComponent("colclick")
+        let cA = cRoot.appendingPathComponent("a"), cX = cA.appendingPathComponent("x")
+        try? FileManager.default.createDirectory(at: cX, withIntermediateDirectories: true)
+        for f in ["c1.txt", "c2.txt", "c3.txt", "c4.txt"] {
+            try? "x".write(to: cRoot.appendingPathComponent(f), atomically: true, encoding: .utf8)
+        }
+        try? "x".write(to: cA.appendingPathComponent("y.txt"), atomically: true, encoding: .utf8)
+        try? "x".write(to: cX.appendingPathComponent("z.txt"), atomically: true, encoding: .utf8)
+        pane.navigate(to: cRoot); pane.testReloadSync()
+        pane.setViewMode(.columns)
+        wait(0.1)
+        if let cvc = pane.testColumnVC {
+            cvc.testClickRow(0, inColumn: 0)   // "a"
+            wait(0.1)
+            cvc.testClickRow(0, inColumn: 1)   // "x"
+            wait(0.1)
+            let cols = cvc.testVisibleTitles()
+            assert("column view: one column per open folder",
+                   cols == [["a", "c1.txt", "c2.txt", "c3.txt", "c4.txt"], ["x", "y.txt"], ["z.txt"]],
+                   "got \(cols)")
+            cvc.testClickRow(1, inColumn: 1)   // "y.txt": closes the "x" column
+            wait(0.1)
+            let cols2 = cvc.testVisibleTitles()
+            assert("column view: selecting a file closes deeper columns",
+                   cols2 == [["a", "c1.txt", "c2.txt", "c3.txt", "c4.txt"], ["x", "y.txt"]],
+                   "got \(cols2)")
+        }
+        pane.setViewMode(.list)
+        pane.navigate(to: sandbox); pane.testReloadSync()
+
         // --- T31c: case-only rename (report.txt → Report.txt) must work ---
         let caseRen = sandbox.appendingPathComponent("caseRen")
         try? FileManager.default.createDirectory(at: caseRen, withIntermediateDirectories: true)
@@ -3266,6 +3300,12 @@ final class TestRunner {
         _ = gallery.view
         gallery.reload((try? FileManager.default.contentsOfDirectory(at: sandbox, includingPropertiesForKeys: nil))?.compactMap { FileItem.load($0) } ?? [])
         assert("GalleryViewController builds + reloads", gallery.view.subviews.isEmpty == false, "empty")
+        // Regression: the gallery strip resized the shared cached icons to 56 pt in
+        // place, so the column view (which draws icons at their own size) showed
+        // giant folder icons afterwards.
+        let sharedFolderIcon = IconCache.shared.icon(forURL: sandbox.appendingPathComponent("subdir"), isDirectory: true)
+        assert("gallery leaves the shared 16 pt icons alone",
+               sharedFolderIcon.size == NSSize(width: 16, height: 16), "got \(sharedFolderIcon.size)")
 
         // --- Permissions: once-only onboarding + Full Disk Access detection ---
         let permOnboard = PermissionsOnboardingController()

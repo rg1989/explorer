@@ -97,7 +97,9 @@ final class GalleryViewController: NSViewController, ThemeObserving {
             b.imagePosition = .imageOnly
             b.bezelStyle = .smallSquare
             b.isBordered = true
-            let icon = IconCache.shared.icon(for: item)
+            // Copy first: the cached icon is shared with every other view, and
+            // resizing it in place made the column view draw giant icons.
+            let icon = IconCache.shared.icon(for: item).copy() as! NSImage
             icon.size = NSSize(width: 56, height: 56)
             b.image = icon
             b.translatesAutoresizingMaskIntoConstraints = false

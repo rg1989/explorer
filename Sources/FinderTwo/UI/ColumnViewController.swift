@@ -32,8 +32,6 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
 
     weak var pane: PaneController?
     private let browser = FixedWidthBrowser()
-    /// For each column index, the directory URL whose contents that column shows.
-    private var columnURLs: [URL] = []
 
     init(pane: PaneController) {
         self.pane = pane
@@ -95,9 +93,8 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
     }
 
     func reload() {
-        guard let pane = pane else { return }
+        guard pane != nil else { return }
         entryCache.removeAll()
-        columnURLs = [pane.currentURL]
         browser.loadColumnZero()
     }
 
@@ -125,17 +122,30 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
         return sorted
     }
 
+    /// The folder a column shows: the pane's folder for column 0, else the folder
+    /// selected in the column to its left. Read from the browser itself, because
+    /// NSBrowser opens the next column on its own when a folder is clicked, before
+    /// our action runs; a separate list of column folders went stale there and
+    /// showed blank rows and an extra empty column.
+    private func folder(forColumn column: Int) -> URL? {
+        guard var url = pane?.currentURL else { return nil }
+        for c in 0..<column {
+            let kids = entries(in: url)
+            let row = browser.selectedRow(inColumn: c)
+            guard kids.indices.contains(row), kids[row].isDir else { return nil }
+            url = kids[row].url
+        }
+        return url
+    }
+
     // MARK: NSBrowserDelegate
 
     func browser(_ sender: NSBrowser, numberOfRowsInColumn column: Int) -> Int {
-        guard let url = columnURLs.indices.contains(column) ? columnURLs[column] : columnURLs.last
-        else { return 0 }
-        return entries(in: url).count
+        folder(forColumn: column).map { entries(in: $0).count } ?? 0
     }
 
     func browser(_ sender: NSBrowser, willDisplayCell cell: Any, atRow row: Int, column: Int) {
-        guard let cell = cell as? NSBrowserCell,
-              let url = columnURLs.indices.contains(column) ? columnURLs[column] : nil else { return }
+        guard let cell = cell as? NSBrowserCell, let url = folder(forColumn: column) else { return }
         let kids = entries(in: url)
         guard kids.indices.contains(row) else { return }
         let kid = kids[row]
@@ -150,16 +160,49 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
     /// Verify hook: drill into the first subfolder of the deepest column (push a column).
     @discardableResult
     func testDrillIntoFirstFolder() -> Bool {
-        let col = max(0, columnURLs.count - 1)
-        guard columnURLs.indices.contains(col) else { return false }
-        let kids = entries(in: columnURLs[col])
+        let col = max(0, browser.lastColumn)
+        guard let dir = folder(forColumn: col) else { return false }
+        let kids = entries(in: dir)
         guard let row = kids.firstIndex(where: { $0.isDir }) else { return false }
         browser.selectRow(row, inColumn: col)
         handleSelection()
         return true
     }
-    var testColumnCount: Int { columnURLs.count }
-    var testBrowserWidth: CGFloat { browser.frame.width }
+
+    /// Test hook: a real mouse click on a row, so NSBrowser runs its own click
+    /// handling (which adds the next column by itself) before our action.
+    func testClickRow(_ row: Int, inColumn col: Int) {
+        guard let win = browser.window, col <= browser.lastColumn else { return }
+        browser.scrollColumnToVisible(col)
+        let r = browser.frame(ofRow: row, inColumn: col)
+        let p = browser.convert(NSPoint(x: r.midX, y: r.midY), to: nil)
+        func ev(_ t: NSEvent.EventType) -> NSEvent? {
+            NSEvent.mouseEvent(with: t, location: p, modifierFlags: [],
+                               timestamp: ProcessInfo.processInfo.systemUptime,
+                               windowNumber: win.windowNumber, context: nil,
+                               eventNumber: 0, clickCount: 1, pressure: 1)
+        }
+        // Straight to the view under the point: an inactive (off-screen test) window
+        // would treat a window-level click as "activate" and drop it.
+        guard let cv = win.contentView, let hit = cv.hitTest(cv.convert(p, from: nil)),
+              let down = ev(.leftMouseDown), let up = ev(.leftMouseUp) else { return }
+        NSApp.postEvent(up, atStart: true)   // ends the cell tracking loop
+        hit.mouseDown(with: down)
+    }
+
+    /// Test hook: what the browser shows, one array of titles per loaded column.
+    /// An empty title is a blank row.
+    func testVisibleTitles() -> [[String]] {
+        guard browser.lastColumn >= 0 else { return [] }
+        return (0...browser.lastColumn).map { c in
+            var titles: [String] = []
+            var row = 0
+            while let cell = browser.loadedCell(atRow: row, column: c) as? NSBrowserCell {
+                titles.append(cell.title); row += 1
+            }
+            return titles
+        }
+    }
 
     /// Reports the URLs selected in the active (deepest selected) column so the
     /// pane can run file commands (cut/copy/Get Info/…) on the real selection.
@@ -168,33 +211,26 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
     /// URLs currently highlighted in the active column (supports multi-select).
     func selectedURLs() -> [URL] {
         let col = browser.selectedColumn
-        guard col >= 0, columnURLs.indices.contains(col) else { return [] }
-        let kids = entries(in: columnURLs[col])
+        guard col >= 0, let dir = folder(forColumn: col) else { return [] }
+        let kids = entries(in: dir)
         return (browser.selectedRowIndexes(inColumn: col) ?? IndexSet()).compactMap {
             kids.indices.contains($0) ? kids[$0].url : nil
         }
     }
 
     @objc private func handleSelection() {
-        // When a row in column N is selected, push column N+1 if it's a folder.
         let col = browser.selectedColumn
-        guard col >= 0, columnURLs.indices.contains(col) else { onSelectionChange?([]); return }
-        let kids = entries(in: columnURLs[col])
+        guard col >= 0, let dir = folder(forColumn: col) else { onSelectionChange?([]); return }
+        let kids = entries(in: dir)
         let selUrls = (browser.selectedRowIndexes(inColumn: col) ?? IndexSet()).compactMap {
             kids.indices.contains($0) ? kids[$0].url : nil
         }
-        // The single highlighted row drills into a folder (push column N+1).
+        // A click on a folder already opened its column; a programmatic selectRow
+        // (test hooks) does not, so open it only when it is missing.
         let row = browser.selectedRow(inColumn: col)
-        if row >= 0, kids.indices.contains(row) {
-            let sel = kids[row]
-            if columnURLs.count > col + 1 {
-                columnURLs = Array(columnURLs.prefix(col + 1))
-            }
-            if sel.isDir {
-                columnURLs.append(sel.url)
-                browser.addColumn()
-                browser.scrollColumnToVisible(col + 1)
-            }
+        if selUrls.count == 1, kids.indices.contains(row), kids[row].isDir, browser.lastColumn == col {
+            browser.addColumn()
+            browser.scrollColumnToVisible(col + 1)
         }
         onSelectionChange?(selUrls)
     }
@@ -210,10 +246,10 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
 
     @objc private func handleDoubleClick() {
         let col = browser.selectedColumn
-        guard col >= 0, columnURLs.indices.contains(col) else { return }
+        guard col >= 0, let dir = folder(forColumn: col) else { return }
         let row = browser.selectedRow(inColumn: col)
         guard row >= 0 else { return }
-        let kids = entries(in: columnURLs[col])
+        let kids = entries(in: dir)
         guard kids.indices.contains(row) else { return }
         let sel = kids[row]
         if sel.isDir {
