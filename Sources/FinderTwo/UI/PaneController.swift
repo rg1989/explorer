@@ -174,32 +174,27 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         }
     }
 
-    func togglePreviewDrawer() {
-        previewVisible.toggle()
-        if previewVisible {
-            // Open to full width and lay out *before* loading, so QuickLook always
-            // builds against a real, non-zero host frame. Loading from the slide's
-            // completion handler was unreliable: AppKit fires that handler
-            // synchronously — before the width constraint is committed — whenever the
-            // change isn't animatable (e.g. the window isn't key), so the host read
-            // 0pt-wide, PreviewDrawerView's size guard dropped the QLPreviewView, and
-            // the pane stayed permanently blank. Snapping open (vs. the other drawers'
-            // slide) is the deliberate trade for a preview that always renders.
-            previewView.isHidden = false
-            previewWidthConstraint.constant = LayoutMetrics.value(.previewPaneWidth)
-            view.layoutSubtreeIfNeeded()
-            updatePreviewContent()
-        } else {
-            animateDrawer(previewView, previewWidthConstraint,
-                          open: false, size: LayoutMetrics.value(.previewPaneWidth))
-        }
-    }
+    /// View ▸ Show Preview (a global setting; every pane follows it).
+    func togglePreviewDrawer() { Settings.showPreview.toggle() }
 
-    /// Update the preview drawer to the current selection (or the folder when
-    /// nothing is selected). No-op while the drawer is closed.
+    /// With Show Preview on, the panel slides in while something is selected and
+    /// slides away when nothing is. Its content keeps full width while the panel
+    /// slides (PreviewDrawerView clips it), so QuickLook always lays out at a
+    /// real size, which is what the old snap-open existed for.
     private func updatePreviewContent() {
-        guard previewVisible else { return }
-        previewView.url = selectedURLs().first ?? activeTab.currentURL
+        let target = Settings.showPreview ? selectedURLs().first : nil
+        let width = LayoutMetrics.value(.previewPaneWidth)
+        if let target {
+            previewView.contentWidth = width
+            if !previewVisible {
+                previewVisible = true
+                animateDrawer(previewView, previewWidthConstraint, open: true, size: width)
+            }
+            if previewView.url != target { previewView.url = target }
+        } else if previewVisible {
+            previewVisible = false
+            animateDrawer(previewView, previewWidthConstraint, open: false, size: width)
+        }
     }
 
     private func currentFreeBytesString() -> String {
@@ -1298,6 +1293,9 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     var testPreviewVisible: Bool { previewVisible }
     var testPreviewHostSize: NSSize { previewView.testQLHostSize }
     var testPreviewHasQLView: Bool { previewView.testHasLiveQLView }
+    var testPreviewURL: URL? { previewView.url }
+    var testPreviewDetails: [String] { previewView.testDetails }
+    func testClearSelection() { fileList.tableView.deselectAll(nil); syncSelectionFromList() }
     var testHotbarHeight: CGFloat { hotbarHeightConstraint.constant }
     var testToolbarTopInset: CGFloat { topInsetConstraint.constant }
     var testPathBarPosition: Settings.PathBarPosition {

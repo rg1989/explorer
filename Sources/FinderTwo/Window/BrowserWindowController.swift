@@ -678,7 +678,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
     @objc func toggleSidebarItem(_ sender: Any?) { splitVC.toggleSidebar(sender) }
     @objc func toggleStatusBarItem(_ sender: Any?) { Settings.showStatusBar.toggle() }
     @objc func toggleUseGroups(_ sender: Any?) { Settings.useGroups.toggle() }
-    @objc func togglePreview(_ sender: Any?) { activePane?.togglePreviewDrawer() }
+    @objc func togglePreview(_ sender: Any?) { Settings.showPreview.toggle() }
     @objc func showTransferActivity(_ sender: Any?) { TransferActivityController.shared.present() }
     @objc func toggleDropStack(_ sender: Any?) { DropStackController.shared.toggle() }
     @objc func selectByPattern(_ sender: Any?) { activePane?.selectByPattern() }

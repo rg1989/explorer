@@ -61,13 +61,31 @@ final class SidebarOutlineView: NSOutlineView {
     }
 }
 
-/// 1 pt line between the places column and the folder tree.
+/// Line between the places column and the folder tree. Drag it to share the
+/// space between them; the grab area is wider than the 1 pt line it draws.
 private final class ColumnDivider: NSView {
-    override var intrinsicContentSize: NSSize { NSSize(width: 1, height: NSView.noIntrinsicMetric) }
+    static let grabWidth: CGFloat = 7
+    var currentWidth: () -> CGFloat = { 0 }
+    var onDrag: ((CGFloat) -> Void)?   // proposed places-column width
+    var onDragEnd: (() -> Void)?
+    private var startX: CGFloat = 0
+    private var startWidth: CGFloat = 0
+
+    override var intrinsicContentSize: NSSize { NSSize(width: Self.grabWidth, height: NSView.noIntrinsicMetric) }
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .resizeLeftRight) }
     override func draw(_ dirtyRect: NSRect) {
         NSColor.separatorColor.setFill()
-        bounds.fill()
+        NSRect(x: floor(bounds.midX), y: 0, width: 1, height: bounds.height).fill()
     }
+    override func mouseDown(with event: NSEvent) {
+        startX = event.locationInWindow.x
+        startWidth = currentWidth()
+    }
+    override func mouseDragged(with event: NSEvent) {
+        onDrag?(startWidth + event.locationInWindow.x - startX)
+    }
+    override func mouseUp(with event: NSEvent) { onDragEnd?() }
 }
 
 final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate, ThemeObserving, NSMenuDelegate {
@@ -98,6 +116,39 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     private var isPinnedFavorites = false
     private var pinned: SidebarController?
     static let placesColumnWidth: CGFloat = 170
+    /// Below this the places column snaps to icons only, and goes no narrower.
+    static let placesCollapseBelow: CGFloat = 110
+    static let placesCompactWidth: CGFloat = 52
+    private static let placesWidthKey = "FinderTwo.placesColumnWidth"
+    private var placesWidthConstraint: NSLayoutConstraint?
+
+    /// Set the places column's width as the divider drags: under the threshold
+    /// it becomes the icons-only strip. `persist` saves it for the next launch.
+    func setPlacesWidth(_ proposed: CGFloat, persist: Bool = false) {
+        guard let placesWidthConstraint else { return }
+        let compact = proposed < SidebarController.placesCollapseBelow
+        let width = compact ? SidebarController.placesCompactWidth : proposed
+        placesWidthConstraint.constant = width
+        pinned?.setCompact(compact)
+        if persist { UserDefaults.standard.set(Double(width), forKey: SidebarController.placesWidthKey) }
+    }
+    var testPlacesWidth: CGFloat { placesWidthConstraint?.constant ?? -1 }
+    var testPlacesCompact: Bool { pinned?.isCompact ?? false }
+    var testPlacesTooltips: [String] { pinned?.testRowTooltips ?? [] }
+
+    /// Icons only: no labels or section titles, names as tooltips.
+    private(set) var isCompact = false
+    func setCompact(_ compact: Bool) {
+        guard compact != isCompact else { return }
+        isCompact = compact
+        outline.indentationPerLevel = compact ? 0 : 16
+        reloadPreservingSectionExpansion { }
+    }
+    var testRowTooltips: [String] {
+        (0..<outline.numberOfRows).compactMap {
+            (outline.view(atColumn: 0, row: $0, makeIfNecessary: true) as? NSTableCellView)?.toolTip
+        }
+    }
 
     private final class Section {
         let title: String
@@ -399,10 +450,19 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             // Not an NSBox separator: its built-in height pulled the window down to 50 pt.
             let divider = ColumnDivider()
             divider.translatesAutoresizingMaskIntoConstraints = false
+            divider.currentWidth = { [weak self] in self?.placesWidthConstraint?.constant ?? 0 }
+            divider.onDrag = { [weak self] in self?.setPlacesWidth($0) }
+            divider.onDragEnd = { [weak self] in
+                guard let self, let w = self.placesWidthConstraint?.constant else { return }
+                self.setPlacesWidth(w, persist: true)
+            }
             v.addSubview(divider)
             // The places column keeps its width; the tree takes what is left.
-            let width = strip.view.widthAnchor.constraint(equalToConstant: SidebarController.placesColumnWidth)
+            let saved = UserDefaults.standard.double(forKey: SidebarController.placesWidthKey)
+            let width = strip.view.widthAnchor.constraint(
+                equalToConstant: saved > 0 ? CGFloat(saved) : SidebarController.placesColumnWidth)
             width.priority = .defaultHigh
+            placesWidthConstraint = width
             NSLayoutConstraint.activate([
                 strip.view.topAnchor.constraint(equalTo: v.topAnchor),
                 strip.view.bottomAnchor.constraint(equalTo: v.bottomAnchor),
@@ -412,9 +472,10 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                 divider.topAnchor.constraint(equalTo: v.topAnchor),
                 divider.bottomAnchor.constraint(equalTo: v.bottomAnchor),
                 divider.leadingAnchor.constraint(equalTo: strip.view.trailingAnchor),
-                divider.widthAnchor.constraint(equalToConstant: 1),
+                divider.widthAnchor.constraint(equalToConstant: ColumnDivider.grabWidth),
                 scrollView.leadingAnchor.constraint(equalTo: divider.trailingAnchor),
             ])
+            if width.constant < SidebarController.placesCollapseBelow { strip.setCompact(true) }
         } else {
             scrollView.autohidesScrollers = true
             scrollView.leadingAnchor.constraint(equalTo: v.leadingAnchor).isActive = true
@@ -1436,7 +1497,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                 v.identifier = id
                 return v
             }()
-            view.textField?.stringValue = s.title.uppercased()
+            view.textField?.stringValue = isCompact ? "" : s.title.uppercased()
             view.textField?.textColor = sidebarSecondaryColor
             return view
         }
@@ -1480,6 +1541,8 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             }
             view.textField?.stringValue = leaf.title
             view.textField?.textColor = sidebarPrimaryColor
+            view.textField?.isHidden = isCompact
+            view.toolTip = isCompact ? leaf.title : nil   // icons only: the name on hover
             return view
         }
         return nil

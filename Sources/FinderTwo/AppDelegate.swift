@@ -4,6 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var windowControllers: [BrowserWindowController] = []
     var testWindowControllers: [BrowserWindowController] { windowControllers }
     private weak var chromeHotbarItem: NSMenuItem?
+    private weak var chromePreviewItem: NSMenuItem?
     private weak var chromeTitleBarItem: NSMenuItem?
     private weak var chromeAsIconsItem: NSMenuItem?
     private weak var chromeAsListItem: NSMenuItem?
@@ -393,12 +394,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(routed("view.toggle-statusbar"))
         viewMenu.addItem(routed("view.toggle-pathbar"))
         viewMenu.addItem(routed("view.calculate-sizes"))
+        let previewItem = routed("panel.preview")
+        viewMenu.addItem(previewItem); chromePreviewItem = previewItem
         viewMenu.addItem(routed("view.type-to-select"))
         viewMenu.addItem(NSMenuItem.separator())
         // Panels (drawers + overlays) grouped together to slim the View menu.
         let panelsItem = NSMenuItem(title: "Panels", action: nil, keyEquivalent: "")
         let panelsMenu = NSMenu(title: "Panels")
-        panelsMenu.addItem(routed("panel.preview"))
         panelsMenu.addItem(routed("panel.terminal"))
         panelsMenu.addItem(routed("panel.notes"))
         panelsMenu.addItem(routed("panel.transfers"))
@@ -618,6 +620,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func refreshChromeChecks() {
         chromeHotbarItem?.state = Settings.showHotbar ? .on : .off
         chromeTitleBarItem?.state = Settings.showTitleBar ? .on : .off
+        chromePreviewItem?.state = Settings.showPreview ? .on : .off
     }
 
     /// Rebuild the View ▸ Theme submenu from the live theme list (checkmark the

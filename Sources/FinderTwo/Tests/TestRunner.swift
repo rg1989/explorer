@@ -2292,6 +2292,42 @@ final class TestRunner {
         pane.togglePreviewDrawer()
         assert("preview drawer closes", !pane.testPreviewVisible, "still visible")
 
+        // Show Preview is a View setting: the panel slides in for a selection,
+        // away without one, and lists details (image dimensions here).
+        let pvDir = sandbox.appendingPathComponent("previewdetails")
+        try? FileManager.default.createDirectory(at: pvDir, withIntermediateDirectories: true)
+        let pic = pvDir.appendingPathComponent("pic.png")
+        if let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 3, pixelsHigh: 2, bitsPerSample: 8,
+                                      samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) {
+            try? rep.representation(using: .png, properties: [:])?.write(to: pic)
+        }
+        pane.navigate(to: pvDir); pane.testReloadSync()
+        let savedShowPreview = Settings.showPreview
+        Settings.showPreview = true
+        pane.testClearSelection()
+        assert("preview panel stays closed with nothing selected", !pane.testPreviewVisible, "open")
+        if let picItem = pane.testCurrentItems.first(where: { $0.name == "pic.png" }) {
+            pane.testSelectItem(picItem)
+            pane.view.layoutSubtreeIfNeeded()
+            assert("preview panel slides in for a selected file",
+                   pane.testPreviewVisible && pane.testPreviewURL?.lastPathComponent == "pic.png",
+                   "visible=\(pane.testPreviewVisible) url=\(pane.testPreviewURL?.path ?? "nil")")
+            let details = pane.testPreviewDetails
+            assert("preview details show kind, size, dimensions and dates",
+                   details.contains("Dimensions: 3 × 2") && details.contains { $0.hasPrefix("Kind: ") }
+                       && details.contains { $0.hasPrefix("Modified: ") } && details.contains { $0.hasPrefix("Where: ") },
+                   "got \(details)")
+            assert("preview builds Quick Look while sliding in",
+                   pane.testPreviewHasQLView, "no QLPreviewView")
+        } else {
+            assert("preview test image listed", false, "pic.png missing")
+        }
+        pane.testClearSelection()
+        assert("preview panel slides away when the selection is cleared", !pane.testPreviewVisible, "still open")
+        Settings.showPreview = savedShowPreview
+        pane.navigate(to: sandbox); pane.testReloadSync()
+
         // --- T48: toggleHidden affects what filterless reload returns ---
         let dottedFile = sandbox.appendingPathComponent(".hidden_audit_marker")
         try? "x".write(to: dottedFile, atomically: true, encoding: .utf8)
@@ -3083,6 +3119,25 @@ final class TestRunner {
                    && colFrames.tree.width > 200
                    && colFrames.places.height == colFrames.tree.height,
                "places=\(colFrames.places) tree=\(colFrames.tree)")
+        // Dragging the divider shares the space; below the threshold Favorites
+        // become icons only (with names on hover) and go no narrower.
+        liveSidebar.setPlacesWidth(220)
+        assert("dragging the divider widens the places column",
+               liveSidebar.testPlacesWidth == 220 && !liveSidebar.testPlacesCompact, "w=\(liveSidebar.testPlacesWidth)")
+        liveSidebar.setPlacesWidth(80)
+        assert("a narrow places column snaps to icons only",
+               liveSidebar.testPlacesWidth == SidebarController.placesCompactWidth && liveSidebar.testPlacesCompact,
+               "w=\(liveSidebar.testPlacesWidth) compact=\(liveSidebar.testPlacesCompact)")
+        liveSidebar.setPlacesWidth(10)
+        assert("the icons-only column goes no narrower",
+               liveSidebar.testPlacesWidth == SidebarController.placesCompactWidth, "w=\(liveSidebar.testPlacesWidth)")
+        let tips = liveSidebar.testPlacesTooltips
+        assert("icons-only rows show their names on hover",
+               tips.contains("Downloads") || tips.contains("Recents"), "tooltips=\(tips)")
+        liveSidebar.setPlacesWidth(SidebarController.placesColumnWidth)
+        assert("widening again brings the labels back",
+               !liveSidebar.testPlacesCompact && liveSidebar.testPlacesTooltips.isEmpty,
+               "compact=\(liveSidebar.testPlacesCompact) tips=\(liveSidebar.testPlacesTooltips.count)")
         let trashURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
         assert("Locations include the Trash",
                liveSidebar.testLocationURLs.contains { samePath($0, trashURL) },

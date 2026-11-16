@@ -518,6 +518,11 @@ final class AdvancedPane: SettingsPane {
         calcSizes.state = Settings.calculateFolderSizes ? .on : .off
         addRow("Folders:", calcSizes)
 
+        let showPreview = NSButton(checkboxWithTitle: "Show a preview panel for the selected item",
+                                   target: self, action: #selector(showPreviewChanged(_:)))
+        showPreview.state = Settings.showPreview ? .on : .off
+        addRow("Preview:", showPreview)
+
         let rememberViews = NSButton(checkboxWithTitle: "Remember each folder's view & sort",
                                      target: self, action: #selector(rememberViewsChanged(_:)))
         rememberViews.state = Settings.rememberFolderViews ? .on : .off
@@ -553,6 +558,7 @@ final class AdvancedPane: SettingsPane {
     @objc private func springChanged(_ s: NSButton) { Settings.springLoadedFolders = s.state == .on }
     @objc private func springDelayChanged(_ s: NSSlider) { Settings.springLoadDelay = s.doubleValue }
     @objc private func calcSizesChanged(_ s: NSButton) { Settings.calculateFolderSizes = s.state == .on }
+    @objc private func showPreviewChanged(_ s: NSButton) { Settings.showPreview = s.state == .on }
     @objc private func confirmTrashChanged(_ s: NSButton) { Settings.confirmTrash = s.state == .on }
     @objc private func rememberViewsChanged(_ s: NSButton) { Settings.rememberFolderViews = s.state == .on }
     @objc private func restoreSessionChanged(_ s: NSButton) { Settings.restoreLastSession = s.state == .on }
