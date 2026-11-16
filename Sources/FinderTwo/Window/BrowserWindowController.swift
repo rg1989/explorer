@@ -828,6 +828,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
             }
             return true
         }
+        // ⌘+ is ⌘⇧= on most keyboards; the menu's ⌘= / ⌘- / ⌘0 cover the rest.
+        if (mods == [.command, .shift] && event.keyCode == 24) || (mods == .command && event.keyCode == 69) {
+            Settings.fontSizeDelta += 1; return true
+        }
+        if mods == .command && event.keyCode == 78 { Settings.fontSizeDelta -= 1; return true }
         if mods == .option {
             switch event.keyCode {
             case 123: goBack(nil)                 // ⌥←

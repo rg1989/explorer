@@ -396,6 +396,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(routed("view.calculate-sizes"))
         let previewItem = routed("panel.preview")
         viewMenu.addItem(previewItem); chromePreviewItem = previewItem
+        viewMenu.addItem(routed("view.zoom-in"))
+        viewMenu.addItem(routed("view.zoom-out"))
+        viewMenu.addItem(routed("view.zoom-reset"))
         viewMenu.addItem(routed("view.type-to-select"))
         viewMenu.addItem(NSMenuItem.separator())
         // Panels (drawers + overlays) grouped together to slim the View menu.

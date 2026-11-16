@@ -140,6 +140,8 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
     }
 
     /// Test hook: name colours of the cells on screen, as sRGB hex.
+    var testItemSize: NSSize { (collection.collectionViewLayout as? NSCollectionViewFlowLayout)?.itemSize ?? .zero }
+    var testTooltips: [String] { collection.visibleItems().compactMap { $0.view.toolTip } }
     var testLabelHexes: [String] {
         collection.visibleItems().compactMap { ($0 as? IconGridItem)?.textField?.textColor?.testHex }
     }
@@ -168,6 +170,8 @@ final class IconViewController: NSViewController, NSCollectionViewDataSource,
         let bg: NSColor = t.id == "system" ? .controlBackgroundColor : t.background
         scroll.backgroundColor = bg
         view.layer?.backgroundColor = bg.cgColor
+        (collection.collectionViewLayout as? NSCollectionViewFlowLayout)?.itemSize =
+            NSSize(width: ThemeManager.shared.zoomed(100), height: ThemeManager.shared.zoomed(88))
         // Cells keep the text colour they were configured with; redo them so a
         // switch to a dark theme doesn't leave dark names on a dark background.
         if !items.isEmpty { reload(items) }
@@ -243,6 +247,8 @@ private final class IconCollectionView: NSCollectionView {
 final class IconGridItem: NSCollectionViewItem {
     private let img = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
+    private lazy var imgWidth = img.widthAnchor.constraint(equalToConstant: 48)
+    private lazy var imgHeight = img.heightAnchor.constraint(equalToConstant: 48)
 
     override func loadView() {
         let v = NSView()
@@ -262,8 +268,7 @@ final class IconGridItem: NSCollectionViewItem {
         NSLayoutConstraint.activate([
             img.topAnchor.constraint(equalTo: v.topAnchor, constant: 4),
             img.centerXAnchor.constraint(equalTo: v.centerXAnchor),
-            img.widthAnchor.constraint(equalToConstant: 48),
-            img.heightAnchor.constraint(equalToConstant: 48),
+            imgWidth, imgHeight,
             nameLabel.topAnchor.constraint(equalTo: img.bottomAnchor, constant: 3),
             nameLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 2),
             nameLabel.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -2),
@@ -276,6 +281,11 @@ final class IconGridItem: NSCollectionViewItem {
     func configure(with item: FileItem, labelColor: NSColor) {
         nameLabel.stringValue = item.name
         nameLabel.textColor = item.isHidden ? ThemeChrome.tertiary : labelColor
+        let zoom = ThemeManager.shared
+        imgWidth.constant = zoom.zoomed(48); imgHeight.constant = imgWidth.constant
+        nameLabel.font = NSFont.systemFont(ofSize: zoom.zoomed(11))
+        view.toolTip = item.name        // full name on hover (long names are cut)
+        img.toolTip = item.name
         img.image = IconCache.shared.icon(for: item)   // cached per-extension, not a LaunchServices hit per cell
     }
 

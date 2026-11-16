@@ -156,6 +156,13 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
     }
 
     @objc func applyTheme() {
+        let zoom = ThemeManager.shared
+        // Matrix-style browsers refuse rowHeight; rows follow the prototype cell's size.
+        let proto = NSBrowserCell()
+        proto.font = .systemFont(ofSize: zoom.effectiveFontSize)
+        browser.cellPrototype = proto
+        browser.setDefaultColumnWidth(zoom.zoomed(220))
+        refresh()   // redraw cells at the new size, keeping the open path
         let t = ThemeManager.shared.current
         if t.id == "system" {
             browser.backgroundColor = .controlBackgroundColor
@@ -225,8 +232,17 @@ final class ColumnViewController: NSViewController, NSBrowserDelegate, ThemeObse
         cell.isLeaf = !kid.isDir
         // A bare NSBrowserCell is just text — give it the file icon + a clean font so
         // the column view reads like a real file browser instead of a plain list.
-        cell.font = .systemFont(ofSize: 13)
-        cell.image = IconCache.shared.icon(forURL: kid.url, isDirectory: kid.isDir)
+        let zoom = ThemeManager.shared
+        cell.font = .systemFont(ofSize: zoom.effectiveFontSize)
+        let icon = IconCache.shared.icon(forURL: kid.url, isDirectory: kid.isDir)
+        let side = zoom.zoomed(16)
+        if side == 16 {
+            cell.image = icon
+        } else {   // never resize the shared cached icon itself
+            let copy = icon.copy() as! NSImage
+            copy.size = NSSize(width: side, height: side)
+            cell.image = copy
+        }
     }
 
     /// Verify hook: drill into the first subfolder of the deepest column (push a column).

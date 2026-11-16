@@ -872,6 +872,33 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31g: ⌘+ / ⌘- zoom scales rows, icons and text ---
+        let savedZoom = Settings.fontSizeDelta
+        Settings.fontSizeDelta = 0
+        pane.navigate(to: sandbox); pane.testReloadSync()
+        pane.setViewMode(.icon)
+        wait(0.1)
+        let rowBefore = ThemeManager.shared.effectiveRowHeight
+        let itemBefore = pane.testIconVC?.testItemSize ?? .zero
+        ActionRegistry.action(id: "view.zoom-in")?.perform(wc)
+        ActionRegistry.action(id: "view.zoom-in")?.perform(wc)
+        wait(0.05)
+        assert("zoom in makes list rows taller", ThemeManager.shared.effectiveRowHeight > rowBefore,
+               "\(rowBefore) → \(ThemeManager.shared.effectiveRowHeight)")
+        assert("zoom in makes icon view items bigger",
+               (pane.testIconVC?.testItemSize.width ?? 0) > itemBefore.width,
+               "\(itemBefore) → \(pane.testIconVC?.testItemSize ?? .zero)")
+        assert("icon view items show their name on hover",
+               !(pane.testIconVC?.testTooltips.isEmpty ?? true), "no tooltips")
+        ActionRegistry.action(id: "view.zoom-reset")?.perform(wc)
+        assert("Actual Size resets the zoom", Settings.fontSizeDelta == 0 && ThemeManager.shared.zoom == 1,
+               "delta=\(Settings.fontSizeDelta) zoom=\(ThemeManager.shared.zoom)")
+        ActionRegistry.action(id: "view.zoom-out")?.perform(wc)
+        assert("zoom out makes list rows shorter", ThemeManager.shared.effectiveRowHeight < rowBefore,
+               "\(ThemeManager.shared.effectiveRowHeight)")
+        Settings.fontSizeDelta = savedZoom
+        pane.setViewMode(.list)
+
         // --- T31f: icon view names follow the theme ---
         // Regression: names kept the colour of the theme they were first drawn
         // in, so after switching to a dark theme they were dark on dark.
@@ -2878,7 +2905,7 @@ final class TestRunner {
                ThemeManager.shared.effectiveFontSize == ThemeManager.shared.current.baseFontPointSize + 2,
                "got=\(ThemeManager.shared.effectiveFontSize)")
         Settings.fontSizeDelta = 99   // clamp
-        assert("font delta clamps to +4", Settings.fontSizeDelta == 4, "got=\(Settings.fontSizeDelta)")
+        assert("font delta (zoom) clamps to +10", Settings.fontSizeDelta == 10, "got=\(Settings.fontSizeDelta)")
         Settings.fontSizeDelta = origDelta
 
         let origAccent = Settings.accent
@@ -3150,6 +3177,11 @@ final class TestRunner {
         let tips = liveSidebar.testPlacesTooltips
         assert("icons-only rows show their names on hover",
                tips.contains("Downloads") || tips.contains("Recents"), "tooltips=\(tips)")
+        let sidebarRow = liveSidebar.testRowHeight
+        Settings.fontSizeDelta += 2
+        assert("zoom in makes sidebar rows taller", liveSidebar.testRowHeight > sidebarRow,
+               "\(sidebarRow) → \(liveSidebar.testRowHeight)")
+        Settings.fontSizeDelta -= 2
         liveSidebar.setPlacesWidth(SidebarController.placesColumnWidth)
         assert("widening again brings the labels back",
                !liveSidebar.testPlacesCompact && liveSidebar.testPlacesTooltips.isEmpty,

@@ -75,10 +75,11 @@ enum Settings {
         set { d.set(newValue.rawValue, forKey: "FinderTwo.density"); notifyAppearance() }
     }
 
-    /// Added to the active theme's base font point size. Range clamped -1…+4.
+    /// Added to the active theme's base font point size; ⌘+ / ⌘- step it, and
+    /// icons and rows scale with it (ThemeManager.zoom). Clamped -3…+10.
     static var fontSizeDelta: Int {
         get { d.object(forKey: "FinderTwo.fontSizeDelta") as? Int ?? 0 }
-        set { d.set(max(-1, min(4, newValue)), forKey: "FinderTwo.fontSizeDelta"); notifyAppearance() }
+        set { d.set(max(-3, min(10, newValue)), forKey: "FinderTwo.fontSizeDelta"); notifyAppearance() }
     }
 
     enum Accent: String, CaseIterable {

@@ -111,9 +111,14 @@ final class ThemeManager {
         Settings.accent.color ?? current.accent
     }
 
-    /// Row height from the density setting (overrides the theme's default).
+    /// ⌘+ / ⌘- zoom factor: 1 at the theme's base font size.
+    var zoom: CGFloat { effectiveFontSize / max(1, current.baseFontPointSize) }
+    /// A size designed for zoom 1, scaled to the current zoom.
+    func zoomed(_ size: CGFloat) -> CGFloat { (size * zoom).rounded() }
+
+    /// Row height from the density setting (overrides the theme's default), zoomed.
     var effectiveRowHeight: CGFloat {
-        Settings.density.rowHeight
+        zoomed(Settings.density.rowHeight)
     }
 
     /// Base font point size: theme base + user delta.

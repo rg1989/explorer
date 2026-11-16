@@ -144,6 +144,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         outline.indentationPerLevel = compact ? 0 : 16
         reloadPreservingSectionExpansion { }
     }
+    var testRowHeight: CGFloat { outline.rowHeight }
     var testRowTooltips: [String] {
         (0..<outline.numberOfRows).compactMap {
             (outline.view(atColumn: 0, row: $0, makeIfNecessary: true) as? NSTableCellView)?.toolTip
@@ -519,7 +520,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         outline.allowsEmptySelection = true
         outline.focusRingType = .none   // no blue focus outline around the sidebar
         outline.intercellSpacing = NSSize(width: 0, height: 3)
-        outline.rowHeight = 28
+        outline.rowHeight = ThemeManager.shared.zoomed(28)
         outline.registerForDraggedTypes([.fileURL, SidebarController.favoritePasteboardType,
                                          SidebarController.itemPasteboardType,
                                          SidebarController.sectionPasteboardType])
@@ -849,6 +850,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         let bg: NSColor = isSystem ? .clear : t.sidebarBackground
         outline.backgroundColor = bg
         tintView.layer?.backgroundColor = bg.cgColor
+        outline.rowHeight = ThemeManager.shared.zoomed(28)   // ⌘+ / ⌘- zoom
         outline.reloadData()
         // reloadData drops the selection: keep the open folder marked.
         if let url = selectedURL { highlight(url: url, scroll: false) }
@@ -1488,7 +1490,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             let view = (outlineView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? {
                 let v = NSTableCellView()
                 let tf = NSTextField(labelWithString: "")
-                tf.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+                tf.font = NSFont.systemFont(ofSize: ThemeManager.shared.zoomed(11), weight: .semibold)
                 tf.textColor = .secondaryLabelColor
                 tf.translatesAutoresizingMaskIntoConstraints = false
                 v.addSubview(tf)
@@ -1502,6 +1504,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                 return v
             }()
             view.textField?.stringValue = isCompact ? "" : s.title.uppercased()
+            view.textField?.font = NSFont.systemFont(ofSize: ThemeManager.shared.zoomed(11), weight: .semibold)
             view.textField?.textColor = sidebarSecondaryColor
             return view
         }
@@ -1512,24 +1515,27 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         else if let n = item as? TreeNode { leaf = (n.icon, n.title) }
         else { leaf = nil }
         if let leaf {
-            let id = NSUserInterfaceItemIdentifier("entry")
+            // The size is part of the id, so a zoom change builds fresh, resized cells.
+            let iconSide = ThemeManager.shared.zoomed(16)
+            let id = NSUserInterfaceItemIdentifier("entry-\(Int(iconSide))")
             let view = (outlineView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView) ?? {
                 let v = NSTableCellView()
                 let img = NSImageView()
+                img.imageScaling = .scaleProportionallyUpOrDown
                 img.translatesAutoresizingMaskIntoConstraints = false
                 v.addSubview(img)
                 v.imageView = img
                 let tf = NSTextField(labelWithString: "")
                 tf.translatesAutoresizingMaskIntoConstraints = false
                 tf.lineBreakMode = .byTruncatingTail
-                tf.font = NSFont.systemFont(ofSize: 13)
+                tf.font = NSFont.systemFont(ofSize: ThemeManager.shared.effectiveFontSize)
                 v.addSubview(tf)
                 v.textField = tf
                 NSLayoutConstraint.activate([
                     img.centerYAnchor.constraint(equalTo: v.centerYAnchor),
                     img.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 0),
-                    img.widthAnchor.constraint(equalToConstant: 16),
-                    img.heightAnchor.constraint(equalToConstant: 16),
+                    img.widthAnchor.constraint(equalToConstant: iconSide),
+                    img.heightAnchor.constraint(equalToConstant: iconSide),
                     tf.leadingAnchor.constraint(equalTo: img.trailingAnchor, constant: 6),
                     tf.centerYAnchor.constraint(equalTo: v.centerYAnchor),
                     tf.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -1546,7 +1552,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
             view.textField?.stringValue = leaf.title
             view.textField?.textColor = sidebarPrimaryColor
             view.textField?.isHidden = isCompact
+            view.textField?.font = NSFont.systemFont(ofSize: ThemeManager.shared.effectiveFontSize)
             view.toolTip = isCompact ? leaf.title : nil   // icons only: the name on hover
+            view.imageView?.toolTip = view.toolTip         // the icon is what the pointer is over
             return view
         }
         return nil

@@ -1762,8 +1762,11 @@ final class NameCell: NSTableCellView, NSTextFieldDelegate {
         super.init(coder: coder)
         setup()
     }
+    private lazy var iconWidth = icon.widthAnchor.constraint(equalToConstant: 16)
+    private lazy var iconHeight = icon.heightAnchor.constraint(equalToConstant: 16)
     private func setup() {
         icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.imageScaling = .scaleProportionallyUpOrDown   // icons grow with zoom
         name.translatesAutoresizingMaskIntoConstraints = false
         name.lineBreakMode = .byTruncatingMiddle
         name.font = NSFont.systemFont(ofSize: 13)
@@ -1798,8 +1801,7 @@ final class NameCell: NSTableCellView, NSTextFieldDelegate {
         NSLayoutConstraint.activate([
             icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
-            icon.heightAnchor.constraint(equalToConstant: 16),
+            iconWidth, iconHeight,
             name.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
             name.centerYAnchor.constraint(equalTo: centerYAnchor),
             tagDots.leadingAnchor.constraint(greaterThanOrEqualTo: name.trailingAnchor, constant: 6),
@@ -1823,6 +1825,8 @@ final class NameCell: NSTableCellView, NSTextFieldDelegate {
             name.textColor = item.isHidden ? t.labelTertiary : t.labelPrimary
         }
         name.font = ThemeManager.shared.font()   // live font size + monospaced themes
+        iconWidth.constant = ThemeManager.shared.zoomed(16)
+        iconHeight.constant = iconWidth.constant
         applyGitState(gitState)
         applyTagDots(for: item)
     }
