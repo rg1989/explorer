@@ -168,6 +168,8 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
         super.init(nibName: nil, bundle: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clipboardDidChangeNote),
                                                name: FileOps.clipboardDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(fileActionDidHappen),
+                                               name: FileActionLog.didChange, object: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -337,6 +339,11 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
 
     func reload() {
         if isRenaming { reloadDeferredWhileRenaming = true; return }
+        // Another folder: its sizes are measured fresh, and the old folder's stop.
+        if folderSizeFolder != model.url {
+            folderSizeFolder = model.url
+            dropFolderSizes()
+        }
         // Preserve selection by URL
         let prevSel = selectedItems().map { $0.url }
         rebuildDisplayRows()
@@ -480,7 +487,45 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
 
     // Folder-size cache for "Calculate all sizes". Computed off-main per visible
     // folder and the row repainted when the result lands (like git badges).
-    private static let folderSizeQueue = DispatchQueue(label: "FinderTwo.folderSize", qos: .utility)
+    /// Up to 4 folders measured at once, so one huge folder doesn't hold up the rest.
+    private lazy var folderSizeOps: OperationQueue = {
+        let q = OperationQueue()
+        q.maxConcurrentOperationCount = 4
+        q.qualityOfService = .utility
+        return q
+    }()
+    /// Bumped whenever cached sizes are dropped, so a measurement started
+    /// before the drop can't write an old number back.
+    private var folderSizeGeneration = 0
+    private var folderSizeFolder: URL?
+
+    /// Forget every measured size and stop measuring. Used when the folder
+    /// changes and after a file action (sizes inside may have changed).
+    private func dropFolderSizes() {
+        folderSizeGeneration += 1
+        folderSizeOps.cancelAllOperations()
+        folderSizeCache.removeAllObjects()
+        folderSizeInFlight.removeAll()
+    }
+
+    /// One refresh per burst of file actions (a copy of 500 files logs 500 times).
+    private var folderSizeRefreshPending = false
+    @objc private func fileActionDidHappen() {
+        guard Settings.calculateFolderSizes, !folderSizeRefreshPending else { return }
+        folderSizeRefreshPending = true
+        DispatchQueue.main.async { [weak self] in
+            self?.folderSizeRefreshPending = false
+            self?.refreshFolderSizes()
+        }
+    }
+    func refreshFolderSizes() {
+        dropFolderSizes()
+        reloadVisibleRows()   // shows "…" and measures again
+    }
+    func testSeedFolderSize(_ url: URL, bytes: Int64) {
+        folderSizeCache.setObject(NSNumber(value: bytes), forKey: url as NSURL)
+    }
+    func testCachedFolderSize(_ url: URL) -> Int64? { folderSizeCache.object(forKey: url as NSURL)?.int64Value }
     // Bounded so browsing thousands of folders with "calculate sizes" on can't
     // grow this without limit (it persists across in-place reloads of the same dir).
     private let folderSizeCache: NSCache<NSURL, NSNumber> = {
@@ -492,10 +537,13 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
         if let n = folderSizeCache.object(forKey: url as NSURL) { return SizeFormatter.string(n.int64Value) }
         if !folderSizeInFlight.contains(url) {
             folderSizeInFlight.insert(url)
-            FileListController.folderSizeQueue.async { [weak self] in
-                let bytes = FileListController.recursiveSize(url)
+            let generation = folderSizeGeneration
+            let op = BlockOperation()
+            op.addExecutionBlock { [weak self, weak op] in
+                let bytes = FileListController.recursiveSize(url) { op?.isCancelled ?? true }
+                if op?.isCancelled ?? true { return }
                 DispatchQueue.main.async {
-                    guard let self else { return }
+                    guard let self, generation == self.folderSizeGeneration else { return }
                     self.folderSizeCache.setObject(NSNumber(value: bytes), forKey: url as NSURL)
                     self.folderSizeInFlight.remove(url)
                     if let idx = self.urlToRowIndex[url], idx < self.tableView.numberOfRows {
@@ -504,6 +552,7 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
                     }
                 }
             }
+            folderSizeOps.addOperation(op)
         }
         return "…"   // computing
     }
@@ -551,12 +600,15 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
         return nil   // fetching
     }
 
-    static func recursiveSize(_ url: URL) -> Int64 {
+    static func recursiveSize(_ url: URL, isCancelled: () -> Bool = { false }) -> Int64 {
         var total: Int64 = 0
+        var seen = 0
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
         if let en = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys,
                                                    options: [.skipsPackageDescendants]) {
             while let f = en.nextObject() as? URL {
+                seen += 1
+                if seen % 1000 == 0, isCancelled() { return total }   // left the folder: stop early
                 let v = try? f.resourceValues(forKeys: Set(keys))
                 total += Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
             }

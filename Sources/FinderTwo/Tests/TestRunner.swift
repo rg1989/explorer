@@ -281,6 +281,24 @@ final class TestRunner {
         } else { assert("newFolderWithItems returns a folder", false, "nil") }
         assert("recursiveSize > 0 for a populated folder",
                FileListController.recursiveSize(foDir) > 0, "got \(FileListController.recursiveSize(foDir))")
+        // Folder sizes: on by default, and dropped (so measured again) after a file action.
+        let sizeKey = "FinderTwo.calculateFolderSizes"
+        let savedSizePref = UserDefaults.standard.object(forKey: sizeKey)
+        UserDefaults.standard.removeObject(forKey: sizeKey)
+        assert("folder sizes are calculated by default", Settings.calculateFolderSizes, "off by default")
+        if let savedSizePref { UserDefaults.standard.set(savedSizePref, forKey: sizeKey) }
+        let sizeList = pane.testFileList
+        sizeList.testSeedFolderSize(foDir, bytes: 1)
+        assert("seeded folder size is cached (precondition)", sizeList.testCachedFolderSize(foDir) == 1, "not cached")
+        sizeList.refreshFolderSizes()
+        assert("folder sizes are measured again after a file action",
+               sizeList.testCachedFolderSize(foDir) == nil, "kept a stale size")
+        var checks = 0
+        try? FileManager.default.createDirectory(at: foDir.appendingPathComponent("many"), withIntermediateDirectories: true)
+        for i in 0..<1200 { FileManager.default.createFile(atPath: foDir.appendingPathComponent("many/\(i)").path, contents: nil) }
+        _ = FileListController.recursiveSize(foDir) { checks += 1; return true }
+        assert("folder measuring stops early once cancelled", checks == 1, "checked \(checks) times")
+        try? FileManager.default.removeItem(at: foDir.appendingPathComponent("many"))
 
         // --- T11c: recursive folder merge (union; file collisions recover) ---
         func mk(_ url: URL, _ s: String) { try? s.write(to: url, atomically: true, encoding: .utf8) }

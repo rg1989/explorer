@@ -184,7 +184,7 @@ enum Settings {
     /// Compute and show recursive folder sizes in the Size column (Finder's
     /// "Calculate all sizes"). Off by default — it's I/O-heavy.
     static var calculateFolderSizes: Bool {
-        get { d.object(forKey: "FinderTwo.calculateFolderSizes") as? Bool ?? false }
+        get { d.object(forKey: "FinderTwo.calculateFolderSizes") as? Bool ?? true }
         set { d.set(newValue, forKey: "FinderTwo.calculateFolderSizes"); notify() }
     }
 
