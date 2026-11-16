@@ -999,6 +999,26 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         return icon
     }
 
+    /// Built-in Favorites after Recents, in their default order.
+    static var defaultFavoriteFolders: [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [URL(fileURLWithPath: "/Applications")]
+            + ["Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures"].map { home.appendingPathComponent($0) }
+            + [home]
+    }
+
+    /// The folders the Favorites section shows, in the user's order and with
+    /// their custom names (Recents left out). Used by the Dock menu.
+    static func favoriteFolders() -> [(title: String, url: URL)] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        return SidebarBookmarks.ordered(defaults: [recentsURL] + defaultFavoriteFolders).compactMap { url in
+            guard !isRecentsURL(url), FileManager.default.fileExists(atPath: url.path) else { return nil }
+            let path = url.standardizedFileURL.path
+            let name = path == home ? NSUserName() : (path == "/" ? "Macintosh HD" : url.lastPathComponent)
+            return (SidebarBookmarks.customTitle(for: url) ?? name, url)
+        }
+    }
+
     static var iCloudDriveURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
@@ -1090,17 +1110,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         let clock = NSImage(systemSymbolName: "clock", accessibilityDescription: nil) ?? NSImage()
         clock.size = NSSize(width: 16, height: 16)
         defaultFavs.append(Entry(title: "Recents", url: SidebarController.recentsURL, icon: clock))
-        for (title, sub) in [
-            ("Applications", "/Applications"),
-            ("Desktop", home.appendingPathComponent("Desktop").path),
-            ("Documents", home.appendingPathComponent("Documents").path),
-            ("Downloads", home.appendingPathComponent("Downloads").path),
-            ("Movies", home.appendingPathComponent("Movies").path),
-            ("Music", home.appendingPathComponent("Music").path),
-            ("Pictures", home.appendingPathComponent("Pictures").path),
-            (NSUserName(), home.path),
-        ] {
-            if let e = makeEntry(title, sub, fallback: NSImage.folderName) {
+        for url in SidebarController.defaultFavoriteFolders {
+            let title = url.path == home.path ? NSUserName() : url.lastPathComponent
+            if let e = makeEntry(title, url.path, fallback: NSImage.folderName) {
                 defaultFavs.append(e)
             }
         }

@@ -589,6 +589,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         openNewBrowserWindow(at: FileManager.default.homeDirectoryForCurrentUser)
     }
 
+    // MARK: Dock menu (right-click Explorer's Dock icon)
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let m = NSMenu()
+        func add(_ title: String, _ action: Selector, _ url: URL? = nil, to menu: NSMenu? = nil) {
+            let it = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            it.target = self
+            it.representedObject = url
+            (menu ?? m).addItem(it)
+        }
+        add("New Window", #selector(dockNewWindow(_:)))
+        if currentBrowserWC() != nil { add("New Tab", #selector(dockNewTab(_:))) }
+        m.addItem(.separator())
+        for fav in SidebarController.favoriteFolders() { add(fav.title, #selector(dockOpen(_:)), fav.url) }
+        let recents = RecentDirectories.all().prefix(10)
+        if !recents.isEmpty {
+            let sub = NSMenu()
+            for url in recents { add(url.lastPathComponent, #selector(dockOpen(_:)), url, to: sub) }
+            let item = NSMenuItem(title: "Recent Folders", action: nil, keyEquivalent: "")
+            item.submenu = sub
+            m.addItem(item)
+        }
+        m.addItem(.separator())
+        add("Settings…", #selector(dockSettings(_:)))
+        return m
+    }
+    @objc private func dockNewWindow(_ s: Any?) { newWindow(s); NSApp.activate(ignoringOtherApps: true) }
+    @objc private func dockNewTab(_ s: Any?) {
+        guard let wc = currentBrowserWC() else { return dockNewWindow(s) }
+        wc.testActivePane?.newTab(at: nil)
+        wc.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    /// A folder from the Dock menu opens in a new tab (or window), like a reveal.
+    @objc func dockOpen(_ s: NSMenuItem) {
+        guard let url = s.representedObject as? URL else { return }
+        reveal(url)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc private func dockSettings(_ s: Any?) { showSettings(s); NSApp.activate(ignoringOtherApps: true) }
+
     @objc func showBatchRename(_ sender: Any?) {
         guard let wc = currentBrowserWC() else { return }
         BatchRenameSheetController.show(for: wc)

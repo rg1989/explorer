@@ -872,6 +872,17 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31j: Dock menu: new window/tab, Favorites, Settings ---
+        let dock = appDelegate.applicationDockMenu(NSApp)
+        let dockTitles = dock?.items.map(\.title) ?? []
+        assert("Dock menu offers New Window, New Tab and Settings",
+               ["New Window", "New Tab", "Settings…"].allSatisfy(dockTitles.contains), "got \(dockTitles)")
+        let favs = SidebarController.favoriteFolders()
+        assert("Dock menu lists the Favorites",
+               !favs.isEmpty && favs.allSatisfy { f in dockTitles.contains(f.title) }, "favs \(favs.map(\.title)) menu \(dockTitles)")
+        assert("Favorites for the Dock leave out Recents",
+               !favs.contains { SidebarController.isRecentsURL($0.url) }, "has Recents")
+
         // --- T31i: typed ⌘C / ⌘V in a text field act on the text, clicks on files ---
         assert("typed ⌘V while editing text pastes text",
                BrowserWindowController.shortcutGoesToText(eventType: .keyDown, textHasFocus: true), "went to files")
