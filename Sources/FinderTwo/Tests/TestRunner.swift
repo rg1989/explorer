@@ -3035,6 +3035,30 @@ final class TestRunner {
         Settings.showHotbar = origShowHotbar
         wait(0.02)
 
+        // Snapping (macOS tiling, Rectangle) resizes the window from outside; content
+        // constraints asking for more width during layout must still be refused.
+        do {
+            let w = UserResizeOnlyWindow(contentRect: NSRect(x: -30000, y: -30000, width: 400, height: 300),
+                                         styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+            w.isReleasedWhenClosed = false
+            w.sizeLockedToUser = true
+            w.setFrame(NSRect(x: -30000, y: -30000, width: 640, height: 480), display: false)
+            assert("window takes a size set from outside (snap to side/corner)",
+                   w.frame.size == NSSize(width: 640, height: 480), "size=\(w.frame.size)")
+            let v = NSView(); v.translatesAutoresizingMaskIntoConstraints = false
+            w.contentView!.addSubview(v)
+            NSLayoutConstraint.activate([
+                v.leadingAnchor.constraint(equalTo: w.contentView!.leadingAnchor),
+                v.trailingAnchor.constraint(equalTo: w.contentView!.trailingAnchor),
+                v.topAnchor.constraint(equalTo: w.contentView!.topAnchor),
+                v.bottomAnchor.constraint(equalTo: w.contentView!.bottomAnchor),
+                v.widthAnchor.constraint(greaterThanOrEqualToConstant: 1200)])
+            w.layoutIfNeeded()
+            assert("content constraints still can't widen the window",
+                   w.frame.width == 640, "width=\(w.frame.width)")
+            w.close()
+        }
+
         // Title bar: hidden = full-size content + transparent + hidden title; the
         // sidebar AND the pane's toolbar both gain a top inset so their top edges
         // line up and clear the traffic lights. Shown reverses all of it.

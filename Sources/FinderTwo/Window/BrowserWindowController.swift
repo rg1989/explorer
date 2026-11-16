@@ -13,11 +13,12 @@ private final class NonResizingSplitViewController: NSSplitViewController {
     }
 }
 
-/// The window only changes SIZE in response to a user gesture — dragging the
-/// resize edge (live resize), zoom, or a fullscreen transition. Every other
-/// resize is ignored: AppKit trying to grow the window to satisfy the Miller-
-/// column browser's constraints, AX clients, content layout, etc. So the window
-/// stays exactly the size the user set. Moving it (origin only) is always honored.
+/// Content layout can't resize the window: AppKit grows a window to satisfy
+/// required constraints from inside `layoutIfNeeded` (confirmed as
+/// -[NSWindow _changeWindowFrameFromConstraintsIfNecessary]), which widened it as
+/// Miller columns were pushed. Size changes made during a layout pass are dropped;
+/// everything else (dragging the edge, zoom, fullscreen, macOS window tiling,
+/// Rectangle-style AX tools) goes through. Moving it (origin only) is always honored.
 final class UserResizeOnlyWindow: NSWindow {
     /// Enabled once the initial frame is established (the content-view-controller
     /// assignment and autosaved-frame restore must run first).
@@ -25,8 +26,19 @@ final class UserResizeOnlyWindow: NSWindow {
     /// Lifted around programmatic-but-wanted resizes (zoom / fullscreen transition).
     var allowProgrammaticResize = false
 
+    private var layoutDepth = 0
+
     private var sizeChangeAllowed: Bool {
-        !sizeLockedToUser || inLiveResize || allowProgrammaticResize
+        !sizeLockedToUser || inLiveResize || allowProgrammaticResize || layoutDepth == 0
+    }
+
+    override func layoutIfNeeded() {
+        layoutDepth += 1; defer { layoutDepth -= 1 }
+        super.layoutIfNeeded()
+    }
+    override func updateConstraintsIfNeeded() {
+        layoutDepth += 1; defer { layoutDepth -= 1 }
+        super.updateConstraintsIfNeeded()
     }
 
     override func setContentSize(_ size: NSSize) {
