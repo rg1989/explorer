@@ -419,6 +419,15 @@ enum FileOps {
     }
 
     static func revealInFinder(_ urls: [URL]) {
+        // With Explorer as the system file viewer, the standard reveal call would
+        // come straight back to Explorer. Open the folder in Finder itself then
+        // (without selecting the item: that would need permission to control Finder).
+        if Settings.explorerIsFileViewer,
+           let finder = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") {
+            let folders = Array(Set(urls.map { $0.deletingLastPathComponent() }))
+            NSWorkspace.shared.open(folders, withApplicationAt: finder, configuration: NSWorkspace.OpenConfiguration())
+            return
+        }
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 

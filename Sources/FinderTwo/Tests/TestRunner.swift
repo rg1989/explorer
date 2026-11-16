@@ -872,6 +872,26 @@ final class TestRunner {
         pane.setViewMode(.list)
         pane.navigate(to: sandbox); pane.testReloadSync()
 
+        // --- T31h: "Show in Finder" requests (open documents) reveal in Explorer ---
+        let revDir = sandbox.appendingPathComponent("reveal")
+        let revFile = revDir.appendingPathComponent("target.txt")
+        try? FileManager.default.createDirectory(at: revDir.appendingPathComponent("inner"), withIntermediateDirectories: true)
+        try? "x".write(to: revFile, atomically: true, encoding: .utf8)
+        appDelegate.application(NSApp, open: [revFile])
+        if let rp = appDelegate.currentBrowserWC()?.testActivePane {
+            rp.testReloadSync()
+            assert("revealing a file opens its folder",
+                   samePath(rp.currentURL, revDir), "at \(rp.currentURL.path)")
+            assert("revealing a file selects it",
+                   rp.selectedURLs().map(\.lastPathComponent) == ["target.txt"], "sel=\(rp.selectedURLs())")
+        }
+        appDelegate.application(NSApp, open: [revDir.appendingPathComponent("inner")])
+        if let rp = appDelegate.currentBrowserWC()?.testActivePane {
+            assert("revealing a folder opens that folder",
+                   samePath(rp.currentURL, revDir.appendingPathComponent("inner")), "at \(rp.currentURL.path)")
+        }
+        pane.navigate(to: sandbox); pane.testReloadSync()
+
         // --- T31g: ⌘+ / ⌘- zoom scales rows, icons and text ---
         let savedZoom = Settings.fontSizeDelta
         Settings.fontSizeDelta = 0

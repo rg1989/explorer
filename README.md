@@ -56,6 +56,20 @@ The script builds a release and installs `Explorer.app` in `/Applications`.
 - **Full Disk Access.** Explorer asks for it on first launch. Without it, macOS asks folder by folder.
 - **`install.sh`** is the upstream script. It also installs an `ft` command-line tool. `fork-install.sh` does not.
 
+## Use Explorer for "Show in Finder"
+
+Explorer can take over "Show in Finder" (and "Reveal in Finder") from other apps, and `open -R` in Terminal. The item opens in a new tab with the file selected. Finder's Dock icon, the desktop and Spotlight still use Finder.
+
+- **Turn it on or off:** Settings ▸ Advanced ▸ "Open “Show in Finder” from other apps in Explorer".
+- **What it changes:** the system-wide `NSFileViewer` setting for your user account. Some apps tell Finder directly and still open Finder.
+- **Revert from Terminal:**
+
+  ```bash
+  defaults delete -g NSFileViewer
+  ```
+
+- **If Explorer is deleted while it is on,** macOS logs a warning and goes back to Finder.
+
 ## What you should know
 
 - **Tested on macOS 26 on Apple Silicon only.** The compact title bar depends on how macOS 26 lays out the sidebar.

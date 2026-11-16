@@ -184,6 +184,25 @@ enum Settings {
 
     /// Compute and show recursive folder sizes in the Size column (Finder's
     /// "Calculate all sizes"). Off by default — it's I/O-heavy.
+    /// Other apps' "Show in Finder" (and `open -R`) open Explorer instead. This
+    /// is the system-wide NSFileViewer preference; turning it off deletes it,
+    /// which gives those requests back to Finder. If Explorer is ever deleted
+    /// while it is on, macOS logs a warning and falls back to Finder.
+    static var explorerIsFileViewer: Bool {
+        get {
+            (CFPreferencesCopyValue("NSFileViewer" as CFString, kCFPreferencesAnyApplication,
+                                    kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? String)
+                == Bundle.main.bundleIdentifier
+        }
+        set {
+            let value: CFString? = newValue ? Bundle.main.bundleIdentifier as CFString? : nil
+            CFPreferencesSetValue("NSFileViewer" as CFString, value, kCFPreferencesAnyApplication,
+                                  kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            notify()
+        }
+    }
+
     /// Bundle id of the terminal app for "Open in Terminal"; nil picks iTerm if
     /// installed, else Terminal (see TerminalApp).
     static var terminalAppBundleID: String? {

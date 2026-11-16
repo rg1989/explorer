@@ -100,7 +100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             return
         }
-        if let cliPath = AppDelegate.cliPath() {
+        if !windowControllers.isEmpty {
+            // Launched to open or reveal an item: that window is the one to show.
+        } else if let cliPath = AppDelegate.cliPath() {
             openNewBrowserWindow(at: URL(fileURLWithPath: cliPath))
         } else {
             // Open exactly one window. We deliberately do NOT reopen a previous
@@ -727,9 +729,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
+    /// `open -a Explorer <path>`, and other apps' "Show in Finder" once Explorer
+    /// is the file viewer (Settings): the system sends the item itself.
     func application(_ application: NSApplication, open urls: [URL]) {
-        for u in urls {
-            openNewBrowserWindow(at: u)
+        for u in urls { reveal(u) }
+        if ProcessInfo.processInfo.environment["FT_HEADLESS_TESTING"] != "1" {
+            NSApp.activate(ignoringOtherApps: true)   // come forward, as Finder does
+        }
+    }
+
+    /// A folder opens; anything else opens its folder with it selected. Goes to
+    /// a new tab in the front window (no pile of windows), or a new window when
+    /// none is open (e.g. Explorer was launched for this request).
+    func reveal(_ url: URL) {
+        let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey]))
+            .map { $0.isDirectory == true && $0.isPackage != true } ?? false
+        let folder = isFolder ? url : url.deletingLastPathComponent()
+        if let wc = currentBrowserWC(), let pane = wc.testActivePane {
+            pane.newTab(at: folder)
+            if !isFolder { pane.testFileList.queueReveal(url, rename: false) }
+            wc.window?.makeKeyAndOrderFront(nil)
+        } else {
+            openNewBrowserWindow(at: folder)
+            if !isFolder, let pane = windowControllers.last?.testActivePane {
+                // The new window may have listed the folder already: list it again
+                // so the queued selection lands.
+                pane.testFileList.queueReveal(url, rename: false)
+                pane.reload()
+            }
         }
     }
 }
