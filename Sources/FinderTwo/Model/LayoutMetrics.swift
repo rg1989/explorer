@@ -40,7 +40,7 @@ enum LayoutToken: String, CaseIterable {
         case .sidebarWidth:      return 440   // places column + folder tree
         case .paneMinWidth:      return 360
         case .extraPaneMinWidth: return 280
-        case .previewPaneWidth:  return 260
+        case .previewPaneWidth:  return 320
         }
     }
 

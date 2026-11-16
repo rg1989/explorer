@@ -1297,6 +1297,7 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
     var testPreviewHasQLView: Bool { previewView.testHasLiveQLView }
     var testPreviewURL: URL? { previewView.url }
     var testPreviewDetails: [String] { previewView.testDetails }
+    var testPreviewView: PreviewDrawerView { previewView }
     func testClearSelection() { fileList.tableView.deselectAll(nil); syncSelectionFromList() }
     var testHotbarHeight: CGFloat { hotbarHeightConstraint.constant }
     var testToolbarTopInset: CGFloat { topInsetConstraint.constant }

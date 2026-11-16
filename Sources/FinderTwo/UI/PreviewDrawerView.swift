@@ -16,6 +16,14 @@ import Quartz
 final class PreviewDrawerView: NSView, ThemeObserving {
 
     private let content = NSView()
+    private let block = NSView()
+    private let topShade = ShadeView(darkAtTop: true)
+    private let bottomShade = ShadeView(darkAtTop: false)
+    private lazy var blockCentre: NSLayoutConstraint = {
+        let c = block.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+        c.priority = .defaultHigh
+        return c
+    }()
     private let qlHost = NSView()
     private var ql: QLPreviewView?
     private let nameLabel = NSTextField(labelWithString: "")
@@ -32,14 +40,42 @@ final class PreviewDrawerView: NSView, ThemeObserving {
         didSet {
             nameLabel.stringValue = url?.lastPathComponent ?? "No selection"
             showDetails()
+            fitPreviewShape()
             reloadPreview()
         }
+    }
+
+    /// The preview is as tall as the item needs: an image's own shape (within
+    /// limits), a rough page shape for documents, a smaller box for folders.
+    private var previewShape: NSLayoutConstraint?
+    private func fitPreviewShape() {
+        var ratio: CGFloat = 0.75   // height / width
+        if let url {
+            if let px = PreviewDrawerView.pixelSize(of: url), px.width > 0 {
+                ratio = CGFloat(px.height) / CGFloat(px.width)
+            } else if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+                ratio = 0.6
+            } else if ["pdf", "doc", "docx", "pages", "txt", "md", "rtf"].contains(url.pathExtension.lowercased()) {
+                ratio = 1.3
+            }
+        }
+        previewShape?.isActive = false
+        let c = qlHost.heightAnchor.constraint(equalTo: qlHost.widthAnchor, multiplier: min(1.6, max(0.3, ratio)))
+        c.priority = NSLayoutConstraint.Priority(740)   // gives way when the panel is too short
+        c.isActive = true
+        previewShape = c
     }
 
     private static let folderSizeQueue = DispatchQueue(label: "FinderTwo.previewSize", qos: .utility)
 
     private func showDetails() {
-        while details.numberOfRows > 0 { details.removeRow(at: 0) }
+        // removeRow keeps the row's labels on screen: take them out first, or each
+        // selection draws its details over the previous ones.
+        while details.numberOfRows > 0 {
+            let row = details.row(at: 0)
+            for c in 0..<row.numberOfCells { row.cell(at: c).contentView?.removeFromSuperview() }
+            details.removeRow(at: 0)
+        }
         guard let url else { return }
         let rv = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey, .isPackageKey,
                                                    .localizedTypeDescriptionKey,
@@ -132,19 +168,23 @@ final class PreviewDrawerView: NSView, ThemeObserving {
 
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
+        for v in [topShade, bottomShade, block] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(v)
+        }
         qlHost.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(qlHost)
+        block.addSubview(qlHost)
 
         nameLabel.font = .boldSystemFont(ofSize: 12)
         nameLabel.alignment = .center
         nameLabel.lineBreakMode = .byTruncatingMiddle
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(nameLabel)
+        block.addSubview(nameLabel)
 
         details.translatesAutoresizingMaskIntoConstraints = false
         details.rowSpacing = 4
         details.columnSpacing = 8
-        content.addSubview(details)
+        block.addSubview(details)
 
         contentWidthConstraint = content.widthAnchor.constraint(equalToConstant: LayoutMetrics.value(.previewPaneWidth))
         NSLayoutConstraint.activate([
@@ -158,19 +198,38 @@ final class PreviewDrawerView: NSView, ThemeObserving {
             content.leadingAnchor.constraint(equalTo: leadingAnchor),
             contentWidthConstraint,
 
-            qlHost.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
-            qlHost.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-            qlHost.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            // The preview and its text form one block, centred top to bottom;
+            // the space above and below it is shaded.
+            block.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            block.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            block.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: 12),
+            block.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -12),
+            blockCentre,
 
-            nameLabel.topAnchor.constraint(equalTo: qlHost.bottomAnchor, constant: 8),
-            nameLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 10),
-            nameLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -10),
+            topShade.topAnchor.constraint(equalTo: content.topAnchor),
+            topShade.bottomAnchor.constraint(equalTo: block.topAnchor),
+            topShade.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            topShade.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            bottomShade.topAnchor.constraint(equalTo: block.bottomAnchor),
+            bottomShade.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            bottomShade.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            bottomShade.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+
+            qlHost.topAnchor.constraint(equalTo: block.topAnchor),
+            qlHost.leadingAnchor.constraint(equalTo: block.leadingAnchor, constant: 12),
+            qlHost.trailingAnchor.constraint(equalTo: block.trailingAnchor, constant: -12),
+
+            nameLabel.topAnchor.constraint(equalTo: qlHost.bottomAnchor, constant: 10),
+            nameLabel.leadingAnchor.constraint(equalTo: block.leadingAnchor, constant: 10),
+            nameLabel.trailingAnchor.constraint(equalTo: block.trailingAnchor, constant: -10),
 
             details.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 8),
-            details.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 10),
-            details.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -10),
-            details.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+            details.centerXAnchor.constraint(equalTo: block.centerXAnchor),
+            details.leadingAnchor.constraint(greaterThanOrEqualTo: block.leadingAnchor, constant: 10),
+            details.trailingAnchor.constraint(lessThanOrEqualTo: block.trailingAnchor, constant: -10),
+            details.bottomAnchor.constraint(equalTo: block.bottomAnchor),
         ])
+        fitPreviewShape()
         // Guarantee the QuickLook host keeps a real height even when the pane is
         // short (e.g. the bottom terminal drawer is open) — otherwise the label
         // chain can squeeze qlHost to zero and reloadPreview()'s size guard drops
@@ -193,6 +252,10 @@ final class PreviewDrawerView: NSView, ThemeObserving {
     // MARK: - Test hooks
     var testQLHostSize: NSSize { qlHost.bounds.size }
     var testHasLiveQLView: Bool { ql != nil }
+    /// Labels left over from earlier selections (should be 0).
+    var testStrayDetailViews: Int { details.subviews.count - 2 * details.numberOfRows }
+    var testPreviewFrame: NSRect { qlHost.convert(qlHost.bounds, to: self) }
+    var testBlockFrame: NSRect { block.convert(block.bounds, to: self) }
     /// "Key: value" for each detail row.
     var testDetails: [String] {
         (0..<details.numberOfRows).compactMap { r in
@@ -200,5 +263,29 @@ final class PreviewDrawerView: NSView, ThemeObserving {
                   let v = details.cell(atColumnIndex: 1, rowIndex: r).contentView as? NSTextField else { return nil }
             return "\(k.stringValue): \(v.stringValue)"
         }
+    }
+}
+
+/// Soft shade over the empty space above or below the preview: clear next to
+/// the preview, slightly dark at the panel's edge.
+private final class ShadeView: NSView {
+    private let gradient = CAGradientLayer()
+    init(darkAtTop: Bool) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        let dark = NSColor.black.withAlphaComponent(0.22).cgColor
+        let clear = NSColor.black.withAlphaComponent(0).cgColor
+        // Layer y runs bottom to top.
+        gradient.colors = darkAtTop ? [clear, dark] : [dark, clear]
+        gradient.startPoint = CGPoint(x: 0.5, y: 0)
+        gradient.endPoint = CGPoint(x: 0.5, y: 1)
+        layer?.addSublayer(gradient)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func layout() {
+        super.layout()
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        gradient.frame = bounds
+        CATransaction.commit()
     }
 }

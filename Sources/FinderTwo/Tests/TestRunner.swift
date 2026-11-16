@@ -2379,6 +2379,7 @@ final class TestRunner {
                                       colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) {
             try? rep.representation(using: .png, properties: [:])?.write(to: pic)
         }
+        try? "x".write(to: pvDir.appendingPathComponent("b.txt"), atomically: true, encoding: .utf8)
         pane.navigate(to: pvDir); pane.testReloadSync()
         let savedShowPreview = Settings.showPreview
         Settings.showPreview = true
@@ -2397,6 +2398,20 @@ final class TestRunner {
                    "got \(details)")
             assert("preview builds Quick Look while sliding in",
                    pane.testPreviewHasQLView, "no QLPreviewView")
+            // Another selection, then back: details must not pile up on each other.
+            if let other = pane.testCurrentItems.first(where: { $0.name == "b.txt" }) {
+                pane.testSelectItem(other); pane.testSelectItem(picItem)
+            }
+            let pv = pane.testPreviewView
+            pv.layoutSubtreeIfNeeded()
+            assert("preview details replace the previous item's, not overlap them",
+                   pv.testStrayDetailViews == 0, "stray labels: \(pv.testStrayDetailViews)")
+            let pf = pv.testPreviewFrame
+            assert("the preview takes the image's shape (3 × 2)",
+                   pf.width > 0 && abs(pf.height - pf.width * 2 / 3) <= 2, "frame \(pf)")
+            let bf = pv.testBlockFrame
+            assert("preview and details sit together, centred top to bottom",
+                   abs(bf.midY - pv.bounds.midY) <= 2, "block \(bf) in \(pv.bounds)")
         } else {
             assert("preview test image listed", false, "pic.png missing")
         }
