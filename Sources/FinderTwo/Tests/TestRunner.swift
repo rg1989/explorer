@@ -2412,6 +2412,13 @@ final class TestRunner {
             let bf = pv.testBlockFrame
             assert("preview and details sit together, centred top to bottom",
                    abs(bf.midY - pv.bounds.midY) <= 2, "block \(bf) in \(pv.bounds)")
+            pv.layout()
+            let stops = pv.testFadeStops
+            let h = max(1, pv.bounds.height)
+            assert("panel fades from transparent at the edges to solid behind preview and text",
+                   stops.count == 4 && stops[0].1 == 0 && stops[3].1 == 0 && stops[1].1 == 1 && stops[2].1 == 1
+                       && stops[1].0 <= bf.minY / h && stops[2].0 >= bf.maxY / h,
+                   "stops \(stops) block \(bf) h \(h)")
         } else {
             assert("preview test image listed", false, "pic.png missing")
         }

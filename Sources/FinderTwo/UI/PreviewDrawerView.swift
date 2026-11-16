@@ -17,8 +17,9 @@ final class PreviewDrawerView: NSView, ThemeObserving {
 
     private let content = NSView()
     private let block = NSView()
-    private let topShade = ShadeView(darkAtTop: true)
-    private let bottomShade = ShadeView(darkAtTop: false)
+    /// Fades the whole panel out toward its top and bottom edges: solid behind
+    /// the preview and its text, fully transparent at the very top and bottom.
+    private let fade = CAGradientLayer()
     private lazy var blockCentre: NSLayoutConstraint = {
         let c = block.centerYAnchor.constraint(equalTo: content.centerYAnchor)
         c.priority = .defaultHigh
@@ -168,10 +169,13 @@ final class PreviewDrawerView: NSView, ThemeObserving {
 
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
-        for v in [topShade, bottomShade, block] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            content.addSubview(v)
-        }
+        block.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(block)
+        fade.startPoint = CGPoint(x: 0.5, y: 0)   // layer y runs bottom to top
+        fade.endPoint = CGPoint(x: 0.5, y: 1)
+        fade.colors = [NSColor.black.withAlphaComponent(0).cgColor, NSColor.black.cgColor,
+                       NSColor.black.cgColor, NSColor.black.withAlphaComponent(0).cgColor]
+        layer?.mask = fade
         qlHost.translatesAutoresizingMaskIntoConstraints = false
         block.addSubview(qlHost)
 
@@ -199,21 +203,12 @@ final class PreviewDrawerView: NSView, ThemeObserving {
             contentWidthConstraint,
 
             // The preview and its text form one block, centred top to bottom;
-            // the space above and below it is shaded.
+            // the panel fades out above and below it (see `fade`).
             block.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             block.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             block.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: 12),
             block.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -12),
             blockCentre,
-
-            topShade.topAnchor.constraint(equalTo: content.topAnchor),
-            topShade.bottomAnchor.constraint(equalTo: block.topAnchor),
-            topShade.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            topShade.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            bottomShade.topAnchor.constraint(equalTo: block.bottomAnchor),
-            bottomShade.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            bottomShade.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            bottomShade.trailingAnchor.constraint(equalTo: content.trailingAnchor),
 
             qlHost.topAnchor.constraint(equalTo: block.topAnchor),
             qlHost.leadingAnchor.constraint(equalTo: block.leadingAnchor, constant: 12),
@@ -242,6 +237,21 @@ final class PreviewDrawerView: NSView, ThemeObserving {
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Keep the solid part of the fade behind the block, with a little margin.
+    override func layout() {
+        super.layout()
+        let h = bounds.height
+        guard h > 0 else { return }
+        let b = block.convert(block.bounds, to: self)
+        let margin: CGFloat = 16
+        let low = max(0, min(1, (b.minY - margin) / h))
+        let high = max(low, min(1, (b.maxY + margin) / h))
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        fade.frame = bounds
+        fade.locations = [0, NSNumber(value: Double(low)), NSNumber(value: Double(high)), 1]
+        CATransaction.commit()
+    }
+
     @objc func applyTheme() {
         let t = ThemeManager.shared.current
         layer?.backgroundColor = (t.id == "system" ? NSColor.windowBackgroundColor : t.background).cgColor
@@ -256,6 +266,12 @@ final class PreviewDrawerView: NSView, ThemeObserving {
     var testStrayDetailViews: Int { details.subviews.count - 2 * details.numberOfRows }
     var testPreviewFrame: NSRect { qlHost.convert(qlHost.bounds, to: self) }
     var testBlockFrame: NSRect { block.convert(block.bounds, to: self) }
+    /// (location, alpha) for each stop of the fade, bottom to top.
+    var testFadeStops: [(CGFloat, CGFloat)] {
+        let alphas = (fade.colors as? [CGColor] ?? []).map { $0.alpha }
+        let locs = (fade.locations ?? []).map { CGFloat($0.doubleValue) }
+        return Array(zip(locs, alphas))
+    }
     /// "Key: value" for each detail row.
     var testDetails: [String] {
         (0..<details.numberOfRows).compactMap { r in
@@ -263,29 +279,5 @@ final class PreviewDrawerView: NSView, ThemeObserving {
                   let v = details.cell(atColumnIndex: 1, rowIndex: r).contentView as? NSTextField else { return nil }
             return "\(k.stringValue): \(v.stringValue)"
         }
-    }
-}
-
-/// Soft shade over the empty space above or below the preview: clear next to
-/// the preview, slightly dark at the panel's edge.
-private final class ShadeView: NSView {
-    private let gradient = CAGradientLayer()
-    init(darkAtTop: Bool) {
-        super.init(frame: .zero)
-        wantsLayer = true
-        let dark = NSColor.black.withAlphaComponent(0.22).cgColor
-        let clear = NSColor.black.withAlphaComponent(0).cgColor
-        // Layer y runs bottom to top.
-        gradient.colors = darkAtTop ? [clear, dark] : [dark, clear]
-        gradient.startPoint = CGPoint(x: 0.5, y: 0)
-        gradient.endPoint = CGPoint(x: 0.5, y: 1)
-        layer?.addSublayer(gradient)
-    }
-    required init?(coder: NSCoder) { fatalError() }
-    override func layout() {
-        super.layout()
-        CATransaction.begin(); CATransaction.setDisableActions(true)
-        gradient.frame = bounds
-        CATransaction.commit()
     }
 }
