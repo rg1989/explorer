@@ -1,207 +1,91 @@
 # Explorer
 
-Explorer is a personal fork of [Rascal](https://github.com/chang-07/rascal) by chang (MIT licence). It keeps Rascal's engine and changes the layout toward the classic Windows Explorer. The rest of this file is the upstream Rascal README.
+Explorer is a file manager for macOS with the layout of the classic Windows Explorer: a folder tree on the left, a details list on the right, and keys that most people already know. It is a personal fork of [Rascal](https://github.com/chang-07/rascal) by chang, a native AppKit Finder replacement.
 
-What this fork changes:
+![Explorer with pinned Favorites, the folder tree and the details list](media/explorer-main.png)
 
-- **Name and icon.** The app is called Explorer and has its own bundle id (`dev.rg1989.Explorer`), so it can sit next to a Rascal install.
-- **Folder tree.** A wide left pane with a folder tree that opens down to the current folder and selects it.
-- **Pinned Favorites.** Favorites stay in a fixed strip above the tree. A change to Favorites keeps the scroll position.
-- **Windows keys, in addition to the Mac ones.** Enter opens, F2 renames, Backspace goes back, Alt+Left / Alt+Right / Alt+Up navigate, Delete moves to Trash, Cmd+L edits the address, F5 refreshes, Tab switches between the tree and the file list. See [HOTKEYS.md](HOTKEYS.md).
-- **Compact top.** The navigation row shares the row of the window buttons. The path field has the same rounded shape as the filter.
-- **Safer git calls.** A browsed folder's `.git/config` cannot start programs through `core.fsmonitor`, an external diff or textconv. Clean and smudge filters are not blocked.
+![The command palette over the light theme](media/explorer-palette.png)
 
-Install on your own Mac (Command Line Tools are enough):
+Both screenshots use sample files.
+
+## What it does
+
+- **Folder tree.** The left pane shows your folders as a tree. The tree opens down to the folder you are in and selects it, so you always see where you are and what is next to it.
+- **Pinned Favorites.** Favorites stay in a fixed strip above the tree. They do not scroll away when the tree gets long, and you can fold the strip.
+- **Details list with an address bar.** Back, forward and up buttons, a path you can type into, and a filter for the current folder.
+- **Keyboard first.** Windows keys and Mac keys both work. A command palette (`⌘⇧P`) reaches every action.
+- **Trash first.** Delete moves files to the Trash, and `⌘Z` puts them back. Undo also covers rename, move, copy, duplicate and new folder.
+- **From Rascal, unchanged:** tabs, a second pane, List / Icon / Column / Gallery views, Quick Look, fuzzy file search, search in file contents, batch rename, Finder tags, smart folders, a disk-usage treemap, a terminal drawer, SFTP and network volumes, themes, and an optional vim mode.
+
+## Keys
+
+| Key | Action |
+|---|---|
+| `Enter` or `⌘↓` | Open the selected folder or file |
+| `F2` | Rename |
+| `Backspace`, `⌥←` or `⌘[` | Back |
+| `⌥→` or `⌘]` | Forward |
+| `⌥↑` or `⌘↑` | Parent folder |
+| `Delete` (forward delete) or `⌘⌫` | Move to Trash |
+| `⌘L` | Edit the address |
+| `F5` or `⌘R` | Refresh |
+| `Tab` | Switch between the folder tree and the file list |
+| Arrow keys in the tree | Move, expand and collapse folders |
+| Type letters | Jump to the matching item |
+| `Space` | Quick Look |
+| `⌘⇧P` | Command palette |
+| `⌘F` / `⌘⇧F` | Find files / search in file contents |
+| `⌘T`, `⌘\` | New tab, second pane |
+
+The full list is in [HOTKEYS.md](HOTKEYS.md). You can change shortcuts in Settings (`⌘,`).
+
+## Install
+
+There is no download. You build the app on your own Mac. You need macOS 13 or later and the Xcode Command Line Tools (`xcode-select --install`). Full Xcode is not necessary.
 
 ```bash
+git clone https://github.com/rg1989/explorer.git
+cd explorer
 ./fork-install.sh
 ```
 
-The script builds a release, signs it with a local Apple Development or Developer ID identity if the keychain has one, and installs `/Applications/Explorer.app`. The build is not notarized. Check a change with `./build.sh release && ./smoketest.sh`.
+The script builds a release and installs `Explorer.app` in `/Applications`.
 
----
+- **Signing.** If your keychain has an "Apple Development" or "Developer ID Application" certificate, the script signs with it, and macOS keeps your privacy permissions across rebuilds. Without one, the build is ad-hoc signed and macOS asks again after each install.
+- **Not notarized.** The build is for the Mac that made it.
+- **Full Disk Access.** Explorer asks for it on first launch. Without it, macOS asks folder by folder.
+- **`install.sh`** is the upstream script. It also installs an `ft` command-line tool. `fork-install.sh` does not.
 
-# Rascal
+## What you should know
 
-![Rascal, a keyboard-first Finder replacement for macOS](media/rascal-banner.png)
+- **Tested on macOS 26 on Apple Silicon only.** The compact title bar depends on how macOS 26 lays out the sidebar.
+- **Permanent delete still exists.** `⌘⌥⌫` deletes immediately after a confirmation. The normal delete keys use the Trash.
+- **Git safety.** Explorer shows git status for folders you browse. It blocks three ways a downloaded repository could start a program through its git config (`core.fsmonitor`, an external diff, and textconv). Clean and smudge filters are not blocked, so be careful with repositories from sources you do not trust.
+- **No network code.** The app does not phone home and has no update check. It goes online only for servers and network volumes that you connect.
+- **Vim mode is off by default.** Turn it on in Settings.
 
-[![Stars](https://img.shields.io/github/stars/chang-07/rascal?color=ff8635&label=stars)](https://github.com/chang-07/rascal/stargazers) [![Downloads](https://img.shields.io/github/downloads/chang-07/rascal/total?color=ff8635&label=downloads)](https://github.com/chang-07/rascal/releases) [![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff8635?logo=kofi&logoColor=white)](https://ko-fi.com/chang07)
-
-Rascal is a Finder replacement for macOS, built for people who'd rather not reach for the mouse. It has dual panes, a fuzzy command palette, vim keys, a live disk treemap, real Finder tags, and an inline terminal. It's plain AppKit, it launches fast, and it runs entirely on your Mac.
-
-Free and open source. macOS 13 or later, Apple Silicon or Intel.
-
-[Download](https://github.com/chang-07/rascal/releases/latest) · [Keymap](HOTKEYS.md) · [User guide](https://chang-07.github.io/rascal/guide.html) · [Customize](https://chang-07.github.io/rascal/customize.html)
-
----
-
-## Download
-
-Grab the latest DMG from the [releases page](https://github.com/chang-07/rascal/releases/latest), pick Apple Silicon or Intel, and drag Rascal into Applications.
-
-The build is ad-hoc signed, so the first launch needs a right-click on Rascal.app → Open. If macOS still refuses (or calls it "damaged"), clear the quarantine flag and try again:
+## Development
 
 ```bash
-xattr -cr /Applications/Rascal.app
+./build.sh release     # build build/Explorer.app
+./smoketest.sh         # run the in-process tests, off-screen
+./snapshot.sh ~/some/folder   # render the window to PNG files, off-screen
 ```
 
-You can also install it with Homebrew:
+- The tests and the screenshots run from a separate test bundle (`build/ExplorerTests.app`), so they do not write into the settings of the installed app.
+- The Swift target is still named `FinderTwo`, and settings keys start with `FinderTwo.`. These are upstream names, kept so that upstream changes merge cleanly.
+- Commands are data: add an entry to `Sources/FinderTwo/Model/Actions.swift`, and the menus and the command palette show it.
+- `Package.swift` links only system frameworks. There are no third-party Swift packages.
+- `site/`, `docs/`, `netlify.toml` and `wrangler.jsonc` are the upstream Rascal website. This fork does not use them.
 
-```bash
-brew install --cask chang-07/tap/rascal
-```
+Fork-specific code is mainly in:
 
-Or build it yourself — see below.
+- `Sources/FinderTwo/UI/SidebarController.swift`: the folder tree and the pinned Favorites strip.
+- `Sources/FinderTwo/Window/BrowserWindowController.swift`: Windows keys and the compact title bar.
+- `Sources/FinderTwo/FS/GitStatus.swift`: the hardened git calls.
 
-## Features
+## Credit and licence
 
-- A command palette on `⌘⇧P` and real vim navigation (`hjkl`, `/`, `dd`, `gg`, `gt`). Most things are reachable without the mouse.
-- Dual and multi-pane layouts, tabs, and four view modes: List, Icon, Column, and Gallery.
-- A live disk treemap. It's a colour-coded map of whatever folder you're in; click a tile to go deeper.
-- Reads and writes the same Finder tags Finder does (`kMDItemUserTags`), and you can pin saved searches to the sidebar as smart folders.
-- An inline terminal drawer (`` ⌘` ``) that stays in sync with the active pane's directory.
-- 17 themes out of the box, plus your own if you want to write one in JSON.
-- It stays quick on large folders. There are some numbers further down if you care about that sort of thing.
+Explorer is built on [Rascal](https://github.com/chang-07/rascal) by chang. Almost all of the code is theirs. If you want the original app, with releases and a Homebrew cask, use Rascal. Report bugs in the Rascal engine there; this repository is a personal fork with no support promise.
 
-## Build from source
-
-You'll need macOS 13+ and a Swift 5.9+ toolchain. The Command Line Tools (`xcode-select --install`) are enough; full Xcode isn't required. It's a plain SwiftPM package with no `.xcodeproj`.
-
-```bash
-git clone https://github.com/chang-07/rascal.git
-cd rascal
-
-./run.sh                 # build (debug) + launch in place
-# or
-./build.sh debug         # → build/Rascal.app
-./build.sh release       # optimized build
-./install.sh             # release build → /Applications + a `ft` CLI
-```
-
-After `./install.sh`, open Rascal from anywhere:
-
-```bash
-ft                       # open the current directory
-ft ~/Downloads           # open a path
-```
-
-## Essential shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `⌘⇧P` | Command palette |
-| `⌘F` / `⌘⇧F` | Find files (fuzzy) / search file contents |
-| `⌘\` | Toggle extra pane |
-| `⌘T` / `⌘W` | New / close tab |
-| `⌘↑` / `⌘↓` | Enclosing folder / open selection |
-| `Enter` / `F2` / `Space` | Open / Rename / Quick Look |
-| `⌫` / `⌥←` `⌥→` `⌥↑` | Back / Back, Forward, Up |
-| `Tab` | Switch between the folder tree and the file list |
-| type letters | Jump to the matching item |
-| `` ⌘` `` | Inline terminal |
-| `⌘,` | Settings (themes, vim, shortcuts) |
-
-Vim mode (toggle in Settings) maps `h j k l`, `gg`, `G`, `gt`/`gT`, `dd`, `yy`, `p`, `r`, `/`, `:`, and more when the file list is focused. The **full keymap** is in [HOTKEYS.md](HOTKEYS.md).
-
-## Testing
-
-Two scripts, both of which run off-screen, so no window appears and focus is never taken.
-
-```bash
-./smoketest.sh           # in-process functional runner — 200+ assertions
-./guitest.sh             # Accessibility audit of menus + shortcuts
-```
-
-`smoketest.sh` launches the binary with `FT_RUN_TESTS=1`; the in-process `TestRunner` builds real controllers, panes, sheets, the palette, and vim, then asserts on their state — it is the source of truth. `guitest.sh` (`FT_HEADLESS_TESTING=1`) is a guardrail that every menu item and shortcut stays wired.
-
-## Project layout
-
-```
-Sources/FinderTwo/                 # the Swift target is named FinderTwo (historical); the product is Rascal
-├── main.swift / AppDelegate.swift # entry, menu bar, session restore
-├── Model/      Actions.swift (command registry), DirectoryModel, FileItem, Workspaces
-├── FS/         FastDirScan, FileOps, Tags, DirectoryWatcher (FSEvents)
-├── Input/      VimMode.swift
-├── Theme/      ThemeStore.swift (17 themes) + ThemeManager
-├── UI/         PaneController, FileListController, ColumnViewController, CommandPalette,
-│               SearchSheet, BatchRename, TreemapView, Settings, … (most of the app)
-├── Window/     BrowserWindowController (sidebar | panes split), PanesContainerController
-├── DemoShot.swift                 # off-screen capture harness for the website media
-└── Tests/TestRunner.swift         # 200+ in-process assertions
-```
-
-`Package.swift` links only system frameworks (AppKit, NetFS, Security); there are no third-party Swift dependencies.
-
-## Contributing
-
-Pull requests are welcome: bug fixes, features, themes, and docs. A few things keep Rascal coherent — please keep them in mind.
-
-### Principles
-
-- Local-first and private. No telemetry, no analytics, nothing phoning home. A change that ships user data off the machine won't be merged.
-- Native and fast. AppKit only, no Electron or web views for the core UI. Keep UI work on the main thread and push heavy work off it.
-- Few dependencies. There are currently zero third-party Swift packages; the app leans on system frameworks and a handful of CLI tools (`unzip`, `tar`, `rg`/`grep`, `sftp`, `git`). A new dependency needs a good reason.
-- Keyboard-first. A new feature should be usable without the mouse. Register it as an Action and the palette and menus pick it up for free.
-
-### Set up
-
-```bash
-git clone https://github.com/chang-07/rascal.git
-cd rascal
-./run.sh            # build + launch
-```
-
-macOS 13+ and a Swift 5.9+ toolchain (Command Line Tools are enough). Edit in any editor; `swift build` works directly.
-
-### Before you open a PR
-
-1. `./build.sh debug` compiles clean — fix any new warnings.
-2. `./smoketest.sh` passes (200+ assertions).
-3. `./guitest.sh` passes (menu/shortcut audit).
-4. Add assertions for new behaviour to `Sources/FinderTwo/Tests/TestRunner.swift`.
-
-**Headless-testing rule:** tests and any off-screen rendering must never open a visible window or take focus. The harness parks windows far off every display (`FT_HEADLESS_TESTING=1`) and snapshots them with `CGWindowList`. If you add a capture or demo, follow the off-screen pattern in `DemoShot.swift` — never `makeKeyAndOrderFront` onto a real screen.
-
-### How things are wired
-
-- **Commands are data.** Add new actions to `Model/Actions.swift` (id, title, default shortcut); they appear in the command palette and menu bar automatically, then handle them in the relevant controller.
-- **Preferences** live under the `FinderTwo.*` `UserDefaults` namespace — keep the prefix.
-- **Themes:** add a `ThemeSpec` to `Theme/ThemeStore.swift` (id, name, appearance, hex colours). Users can also drop a JSON theme in the Themes folder with no rebuild.
-- **Don't change** `CFBundleIdentifier` (`dev.chang.FinderTwo`) or the `~/Library/Application Support/FinderTwo` paths — they are load-bearing for granted permissions and existing users' data.
-
-### Style
-
-- Match the surrounding code: 4-space indent, early returns, descriptive names.
-- Comment the *why* for non-obvious AppKit workarounds — the codebase favours that.
-- Avoid force-unwraps in fallible runtime paths.
-
-### Commits & PRs
-
-- Branch off `main`; keep each PR focused on one thing.
-- Commit subjects in the imperative, no trailing period — e.g. `Fix column-view icon caching`.
-- In the PR, say what changed, why, and how you tested it. For visual changes, attach an off-screen `DemoShot` capture rather than a live screenshot.
-
-### Where help is wanted
-
-- Git-status overlay polish, a custom keyboard-shortcut editor, 1M-item virtualized scrolling, and inline-preview improvements are all open.
-- New **themes** are low-risk and always welcome.
-
-## Performance
-
-| Workload | Rascal |
-|---|---|
-| Cold launch → window on screen | ~230 ms |
-| Scan 5,000 files (`FastDirScan`) | ~22 ms |
-| Sync reload 5,000 files | ~33 ms |
-| Live filter, 5,000 files | ~50 ms |
-| Progressive filter (extend a prefix) | ~4 ms |
-
-Measured on an M3 MacBook Pro from the release binary; the same numbers print live from `./smoketest.sh`. The wins come from direct `opendir`/`readdir`/`lstat` scanning, async sort/filter that spills to a background queue past ~2,000 items, progressive filtering, a per-extension icon cache, and a throttled status bar. The reasoning lives in the source comments of `FS/FastDirScan.swift` and `Model/DirectoryModel.swift`.
-
-## Themes
-
-Seventeen built-in: Rascal Light & Dark, Midnight, Sepia, Hacker, Nord, Dracula, Solarized (light & dark), High Contrast, Ocean, Cyberpunk, Gruvbox, Sage, Tokyo Night, Rose Pine, and Catppuccin Mocha — plus a System option that follows macOS. Switch in Settings (`⌘,`) or via the palette, or write your own JSON theme.
-
-## License
-
-[MIT](LICENSE) © 2026 chang. Free and open source, with no cloud or account in the loop.
+MIT licence, same as upstream. See [LICENSE](LICENSE).

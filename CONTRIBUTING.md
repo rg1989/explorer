@@ -1,4 +1,4 @@
-# Contributing to Rascal
+# Contributing to Explorer
 
 Thanks for wanting to help out. The full guide (principles, dev setup, the
 test/PR checklist, how the code is wired, style, and where help is wanted) lives

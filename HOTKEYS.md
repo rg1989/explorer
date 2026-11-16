@@ -1,6 +1,6 @@
-# Rascal — Hotkeys & Options Guide
+# Explorer — Hotkeys & Options Guide
 
-Everything Rascal can do, where to find it, and how to drive it from the
+Everything Explorer can do, where to find it, and how to drive it from the
 keyboard. Every shortcut below is also discoverable in the menu bar and the
 **Command Palette** (`⌘⇧P`).
 
@@ -125,7 +125,7 @@ In the palette / search sheets: `↑`/`↓` move, `Return` activates, `Esc` clos
 | *(View menu)* | Calculate all folder sizes · Type-to-select |
 | *(palette)* | Cycle Theme |
 
-> **Window chrome.** Rascal ships chromeless by default: the **hotbar** and
+> **Window chrome.** Explorer ships chromeless by default: the **hotbar** and
 > the **window title bar** are hidden, while the navigation toolbar (back/forward/up
 > + path field + search) stays visible. Toggle the hotbar with `⌥⌘B` (View ▸ Show
 > Hotbar) and the title bar from View ▸ Show Title Bar. Both choices persist. The
@@ -161,7 +161,7 @@ restores whatever you had open on the branch you switched to.
 | `⌘,` | Settings (General · Appearance · Keyboard · Hotbar · Advanced) |
 | `⌘N` | New window |
 | `⌘M` | Minimize |
-| `⌘H` | Hide Rascal |
+| `⌘H` | Hide Explorer |
 | `⌘Q` | Quit |
 
 ---
@@ -251,7 +251,7 @@ density, and font size layer on top of any theme.
 
 ## Developer features
 
-Rascal is git- and project-aware:
+Explorer is git- and project-aware:
 
 - **Git status badges** — inside any git repo, each row shows a colored letter:
   `M` (orange, modified/renamed), `A`/`U` (green, added/untracked),
@@ -271,7 +271,7 @@ UI — `git status` runs on a background queue.
 
 `⌘K` → enter user / host / port / path → **Test** to verify, **Save Bookmark**
 to keep it, or **Connect** to browse. Authentication uses your existing SSH
-config and agent — Rascal never handles passwords itself. In the browser:
+config and agent — Explorer never handles passwords itself. In the browser:
 double-click a folder to drill in, **Up** to go back, **Download…** to fetch a
 file into the active pane's folder.
 
