@@ -8,12 +8,22 @@ keyboard. Every shortcut below is also discoverable in the menu bar and the
 
 ## Navigation
 
+Explorer accepts the Windows Explorer keys and the Mac keys for the same actions.
+
 | Shortcut | Action | Notes |
 |---|---|---|
-| `⌘↑` | Enclosing folder | Go to parent dir |
-| `⌘↓` | Open selection | Folder → enter; file → open; archive → browse sheet |
-| `⌘[` | Back | History back |
-| `⌘]` | Forward | History forward |
+| `Enter` or `⌘↓` | Open selection | Folder → enter; file → open; archive → browse sheet |
+| `⌫` (Backspace), `⌥←` or `⌘[` | Back | History back |
+| `⌥→` or `⌘]` | Forward | History forward |
+| `⌥↑` or `⌘↑` | Enclosing folder | Go to parent dir |
+| `⌘L` | Edit Address | Focus the address bar; type a path, `Enter` to go |
+| `F5` or `⌘R` | Refresh | Reload the current folder |
+| `Tab` | Folder tree ↔ file list | Moves keyboard focus between the two |
+| `↑` / `↓` in the tree | Previous / next folder | The file list follows the selection |
+| `→` / `←` in the tree | Expand / collapse | On an open folder `→` goes to its first child; on a closed one `←` goes to its parent |
+| `Enter` in the tree | Go to the file list | The folder is already open on the right |
+| `Home` / `End` | First / last item | In List view |
+| `Page Up` / `Page Down` | Move one screen | In List view |
 | `⌘⇧G` | Go to Folder… | Type any path, `~` expands |
 | `⌘⇧H` | Home | Jump to your home folder |
 | `⌘K` | Connect to Server… | SFTP (uses your existing SSH keys/agent) |
@@ -56,14 +66,14 @@ Drag files between panes to copy/move them.
 
 | Shortcut | Action | Notes |
 |---|---|---|
-| `Return` | Rename selected item | Finder-style; base name is preselected |
+| `F2` | Rename selected item | Base name is preselected. (`Return` opens; it no longer renames) |
 | `Space` | Quick Look | Preview selected file(s) |
 | `⌘C` | Copy | File URLs to clipboard |
 | `⌘V` | Paste | Copy here |
 | `⌘⌥V` | Move Items Here | Paste with move semantics |
 | `⌘D` | Duplicate | Adds " copy", " copy 2", … |
 | `⌘Z` / `⇧⌘Z` | Undo / Redo | Reverses rename, move, trash, new, duplicate, copy |
-| `⌘⌫` | Move to Trash | Recoverable |
+| `⌘⌫` or `⌦` (Forward Delete) | Move to Trash | Recoverable. `⌦` does nothing while the folder tree has focus |
 | `⌘⌥⌫` | Delete Immediately… | Bypasses the Trash (confirmation required) |
 | `⌘⇧⌫` | Empty Trash… | |
 | `⌘⇧N` | New Folder | |
@@ -74,7 +84,7 @@ Drag files between panes to copy/move them.
 | `⌘⌥T` | Open in Terminal | iTerm if running, else Terminal.app, at the folder |
 | `⌃⌘A` | Select by Pattern… | Select items matching a shell glob (`*.png`) |
 | `⌃⌘D` | Drop Stack | Toggle the shelf; "Add to Drop Stack" in the context menu |
-| `F5` / `F6` / `F8` | Copy / Move to other pane · Move to Trash | Orthodox-commander keys |
+| `F6` / `F8` | Move to other pane · Move to Trash | Orthodox-commander keys. Copy to Other Pane is in the menu and palette (`F5` is Refresh) |
 
 Also from the File / context menus: **Compress** (Zip, or **Compress…** for
 Tar.gz / password-protected Zip), **Extract**, **Make Alias**, **New File**,
@@ -90,7 +100,7 @@ Activity**. Drag a file onto a folder and pause to **spring-load** it open
 
 | Shortcut | Action | Notes |
 |---|---|---|
-| *(type letters)* | Live filter | Just start typing in the file list; `Esc` clears |
+| *(type letters)* | Jump to the matching item | Type-to-select is on by default. Turn it off in the View menu to get the live filter instead; the Filter box always filters |
 | `⌘F` | Find Files… | Fuzzy filename search across the current folder tree |
 | `⌘⇧F` | Search File Contents… | Full-text grep (`rg` if installed, else `grep`) |
 | `⌘⇧P` | Command Palette | Fuzzy launcher over every action, favorite, tab, theme |

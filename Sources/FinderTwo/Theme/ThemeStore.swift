@@ -9,14 +9,14 @@ enum ThemeStore {
     // MARK: Built-in specs (data, not hardcoded NSColors)
 
     static let builtInSpecs: [ThemeSpec] = [
-        // Rascal's signature themes — matched to the landing page (warm white &
+        // Explorer's signature themes — matched to the landing page (warm white &
         // orange in light; a brown-black + cream + orange dark counterpart).
-        ThemeSpec(id: "rascal-light", name: "Rascal Light", appearance: "light",
+        ThemeSpec(id: "rascal-light", name: "Explorer Light", appearance: "light",
                   background: "#FFFBF6", sidebarBackground: "#FFF3E7", toolbarBackground: "#FFF7EF",
                   pathBarBackground: "#FFF3E7", rowAlternate: "#FFF5EB", labelPrimary: "#241A12",
                   labelSecondary: "#7A6A59", labelTertiary: "#AC9883", accent: "#FF6600",
                   selectionBackground: "#FF660033", baseFontPointSize: 13, rowHeight: 24),
-        ThemeSpec(id: "rascal-dark", name: "Rascal Dark", appearance: "dark",
+        ThemeSpec(id: "rascal-dark", name: "Explorer Dark", appearance: "dark",
                   background: "#1E1611", sidebarBackground: "#17110B", toolbarBackground: "#251B12",
                   pathBarBackground: "#211711", rowAlternate: "#2A1E14", labelPrimary: "#FFE9D4",
                   labelSecondary: "#C9B6A2", labelTertiary: "#8A7762", accent: "#FF8A33",

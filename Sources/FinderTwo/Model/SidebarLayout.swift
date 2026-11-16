@@ -6,7 +6,7 @@ enum SidebarLayout {
     static let didChange = Notification.Name("FinderTwo.sidebarLayoutDidChange")
 
     static let defaultSectionOrder = [
-        "Favorites", "Locations", "Smart Folders", "Tags", "Folders",
+        "Favorites", "Folders", "Locations", "Smart Folders", "Tags",
     ]
 
     private static let sectionOrderKey = "FinderTwo.sidebarSectionOrder.v1"

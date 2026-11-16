@@ -4,7 +4,7 @@ import AppKit
 /// Search File Contents — so they feel like one coherent control: the same
 /// floating panel, the same big rounded search field, and the same
 /// icon + title + subtitle result row. The panel adopts the active theme, so
-/// in Rascal Light it's a warm light card, in Rascal Dark a deep one.
+/// in Explorer Light it's a warm light card, in Explorer Dark a deep one.
 enum OverlayUI {
     // User-customizable via LayoutMetrics (Layout settings pane). Overlay panels
     // are built fresh on each invocation, so a new size applies the next time an
@@ -117,7 +117,7 @@ enum OverlayUI {
     }
 
     /// Shared selection row — the theme's selectionBackground, so every finder
-    /// highlights in Rascal's orange (system theme → native highlight).
+    /// highlights in Explorer's orange (system theme → native highlight).
     static func makeRowView() -> NSTableRowView { ThemedRowView() }
 }
 

@@ -5,15 +5,15 @@
     <!-- Executable name is unchanged (the build product is still "FinderTwo"). -->
     <key>CFBundleExecutable</key>
     <string>FinderTwo</string>
-    <!-- Bundle identifier is intentionally KEPT as dev.chang.FinderTwo: macOS keys
-         granted privacy permissions (Full Disk Access, etc.) to it, so changing it
-         would make the app re-ask. The brand is Rascal; the id stays for continuity. -->
+    <!-- This fork has its own bundle identifier, so it never clashes with an
+         upstream Rascal install. macOS keys privacy permissions (Full Disk
+         Access, etc.) to it: do not change it again. -->
     <key>CFBundleIdentifier</key>
-    <string>dev.chang.FinderTwo</string>
+    <string>dev.rg1989.Explorer</string>
     <key>CFBundleName</key>
-    <string>Rascal</string>
+    <string>Explorer</string>
     <key>CFBundleDisplayName</key>
-    <string>Rascal</string>
+    <string>Explorer</string>
     <key>CFBundleVersion</key>
     <string>7</string>
     <key>CFBundleShortVersionString</key>
@@ -58,18 +58,18 @@
          requires them before an app may touch these protected locations — an
          app that accesses them without a usage string can be killed outright. -->
     <key>NSDesktopFolderUsageDescription</key>
-    <string>Rascal manages and displays the files on your Desktop.</string>
+    <string>Explorer manages and displays the files on your Desktop.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Rascal manages and displays the files in your Documents folder.</string>
+    <string>Explorer manages and displays the files in your Documents folder.</string>
     <key>NSDownloadsFolderUsageDescription</key>
-    <string>Rascal manages and displays the files in your Downloads folder.</string>
+    <string>Explorer manages and displays the files in your Downloads folder.</string>
     <key>NSRemovableVolumesUsageDescription</key>
-    <string>Rascal browses and manages files on connected drives and SD cards.</string>
+    <string>Explorer browses and manages files on connected drives and SD cards.</string>
     <key>NSNetworkVolumesUsageDescription</key>
-    <string>Rascal browses and manages files on mounted network shares.</string>
+    <string>Explorer browses and manages files on mounted network shares.</string>
     <key>NSFileProviderDomainUsageDescription</key>
-    <string>Rascal displays files synced by cloud storage providers.</string>
+    <string>Explorer displays files synced by cloud storage providers.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Rascal opens folders in Terminal and your editor on your behalf.</string>
+    <string>Explorer opens folders in Terminal and your editor on your behalf.</string>
 </dict>
 </plist>

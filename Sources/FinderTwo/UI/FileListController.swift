@@ -895,10 +895,26 @@ final class FileListController: NSViewController, NSTableViewDataSource, NSTable
             toggleQuickLook()
             return true
         }
-        // Return — Finder parity: rename the selected item.
-        if chars == "\r" || chars == "\n" {
-            beginRenameSelection()
-            return true
+        // Return opens and F2 renames (BrowserWindowController.handleExplorerKey).
+        // Home / End / Page Up / Page Down move the selection, as in Windows.
+        if event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+           tableView.numberOfRows > 0 {
+            let last = tableView.numberOfRows - 1
+            let page = max(1, tableView.rows(in: tableView.visibleRect).length - 1)
+            let current = max(tableView.selectedRow, 0)
+            let target: Int?
+            switch event.keyCode {
+            case 115: target = 0                              // Home
+            case 119: target = last                           // End
+            case 116: target = max(0, current - page)         // Page Up
+            case 121: target = min(last, current + page)      // Page Down
+            default:  target = nil
+            }
+            if let target {
+                tableView.selectRowIndexes(IndexSet(integer: target), byExtendingSelection: false)
+                tableView.scrollRowToVisible(target)
+                return true
+            }
         }
         // Type-ahead → live filter: alphanumeric + a few punctuation, no Cmd/Opt/Ctrl.
         // When "type to select" is on, fall through so NSTableView's built-in

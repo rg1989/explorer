@@ -23,7 +23,8 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
     private let backBtn = NSButton()
     private let fwdBtn = NSButton()
     private let upBtn = NSButton()
-    private let pathField = NSTextField()
+    // A search field without its buttons: the same rounded shape as the filter.
+    private let pathField: NSTextField = NSSearchField()
     private let searchField = NSSearchField()
 
     override init(frame frameRect: NSRect) {
@@ -68,8 +69,10 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
         }
 
         pathField.translatesAutoresizingMaskIntoConstraints = false
-        pathField.isBordered = true
-        pathField.bezelStyle = .roundedBezel
+        if let cell = pathField.cell as? NSSearchFieldCell {
+            cell.searchButtonCell = nil
+            cell.cancelButtonCell = nil
+        }
         pathField.placeholderString = "Type a path or Cmd+L to edit"
         pathField.delegate = self
         pathField.font = NSFont.systemFont(ofSize: 12)
@@ -176,13 +179,12 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
         searchField.textColor = textColor
         
         if custom {
-            pathField.isBezeled = false
-            pathField.isBordered = false
-            pathField.drawsBackground = false
-            pathField.wantsLayer = true
-            pathField.layer?.backgroundColor = bgColor.cgColor
-            pathField.layer?.cornerRadius = 5
-            
+            pathField.wantsLayer = false
+            pathField.isBezeled = true
+            pathField.isBordered = true
+            pathField.drawsBackground = true
+            pathField.backgroundColor = bgColor
+
             // Keep NSSearchField's native bezel machinery: its cell uses the
             // bezel geometry to position and hit-test the search/cancel buttons.
             // Turning it off makes typed text overlap the magnifier and leaves
@@ -195,10 +197,9 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
         } else {
             pathField.wantsLayer = false
             pathField.isBezeled = true
-            pathField.bezelStyle = .roundedBezel
             pathField.drawsBackground = true
             pathField.backgroundColor = bgColor
-            
+
             searchField.wantsLayer = false
             searchField.isBezeled = true
             searchField.drawsBackground = true
@@ -210,6 +211,11 @@ final class ToolbarView: NSView, NSTextFieldDelegate, NSSearchFieldDelegate, The
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if control === pathField, commandSelector == #selector(NSResponder.insertNewline(_:)) {
             onCommit?(pathField.stringValue)
+            window?.makeFirstResponder(nil)
+            return true
+        }
+        if control === pathField, commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            pathField.stringValue = pathText   // Esc puts the current path back
             window?.makeFirstResponder(nil)
             return true
         }

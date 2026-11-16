@@ -3,7 +3,7 @@ import AVFoundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Headless capture harness for the landing-page media. Renders real Rascal
+/// Headless capture harness for the landing-page media. Renders real Explorer
 /// scenes OFF-SCREEN (parks an OffscreenSafeWindow far off every display and
 /// captures it with CGWindowListCreateImage — an app may snapshot its OWN
 /// windows with no Screen-Recording permission, and that composites vibrancy +
@@ -166,7 +166,7 @@ enum DemoShot {
     // MARK: - demo video (short guided walkthrough → .mp4)
 
     /// Render a short, simple product walkthrough as an .mp4 — entirely off-screen.
-    /// Each "beat" is a real captured Rascal state, composited onto a warm ivory
+    /// Each "beat" is a real captured Explorer state, composited onto a warm ivory
     /// canvas with a caption, then cross-faded and encoded with AVAssetWriter.
     static func renderWalkthrough(to outPath: String) {
         let sample = makeSampleTree()
@@ -295,7 +295,7 @@ enum DemoShot {
                 a.draw(in: NSRect(x: 0, y: y, width: CGFloat(w), height: font.pointSize * 1.5))
             }
             let serif = NSFont(name: "Georgia-Bold", size: 70) ?? NSFont.systemFont(ofSize: 70, weight: .bold)
-            center("Rascal", font: serif, color: NSColor(srgbRed: 0.14, green: 0.10, blue: 0.07, alpha: 1), y: CGFloat(h) * 0.40)
+            center("Explorer", font: serif, color: NSColor(srgbRed: 0.14, green: 0.10, blue: 0.07, alpha: 1), y: CGFloat(h) * 0.40)
             let ital = NSFont(name: "Georgia-Italic", size: 27) ?? NSFont.systemFont(ofSize: 27)
             center("your files, finally yours.", font: ital, color: NSColor(srgbRed: 0.54, green: 0.47, blue: 0.40, alpha: 1), y: CGFloat(h) * 0.32)
             center("github.com/chang-07/finder-2", font: NSFont.monospacedSystemFont(ofSize: 18, weight: .medium), color: NSColor(srgbRed: 0.75, green: 0.27, blue: 0.05, alpha: 1), y: CGFloat(h) * 0.22)
@@ -502,7 +502,7 @@ enum DemoShot {
 
     private static func makeSampleTree() -> URL {
         let fm = FileManager.default
-        let root = fm.homeDirectoryForCurrentUser.appendingPathComponent("Rascal", isDirectory: true)
+        let root = fm.homeDirectoryForCurrentUser.appendingPathComponent("Explorer", isDirectory: true)
         try? fm.removeItem(at: root)
         for d in ["Documents", "Projects", "Photos", "Music", "Downloads"] {
             try? fm.createDirectory(at: root.appendingPathComponent(d), withIntermediateDirectories: true)

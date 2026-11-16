@@ -69,7 +69,7 @@ enum ThemeChrome {
 }
 
 /// A table/outline row that highlights the selected row with the theme's
-/// `selectionBackground` (Rascal's orange tint), falling back to the native
+/// `selectionBackground` (Explorer's orange tint), falling back to the native
 /// system highlight under the System theme. Used by the file list, sidebar,
 /// and the overlay finders so selection looks the same everywhere.
 final class ThemedRowView: NSTableRowView {

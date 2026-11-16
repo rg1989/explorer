@@ -75,7 +75,7 @@ final class DiskAnalyzerWindowController: NSWindowController, NSWindowDelegate, 
         spinner.isDisplayedWhenStopped = false
         spinner.controlSize = .small
 
-        let reveal = NSButton(title: "Reveal in Rascal", target: self, action: #selector(revealInPane))
+        let reveal = NSButton(title: "Reveal in Explorer", target: self, action: #selector(revealInPane))
         reveal.bezelStyle = .rounded
         reveal.translatesAutoresizingMaskIntoConstraints = false
 

@@ -83,7 +83,11 @@ struct KeyShortcut: Equatable, Hashable {
         if modifiers.contains(.option)  { s += "⌥" }
         if modifiers.contains(.shift)   { s += "⇧" }
         if modifiers.contains(.command) { s += "⌘" }
-        s += key.uppercased()
+        let names: [Int: String] = [NSUpArrowFunctionKey: "↑", NSDownArrowFunctionKey: "↓",
+                                    NSLeftArrowFunctionKey: "←", NSRightArrowFunctionKey: "→",
+                                    NSBackspaceCharacter: "⌫", NSDeleteCharacter: "⌦",
+                                    NSF2FunctionKey: "F2", NSF5FunctionKey: "F5"]
+        s += key.unicodeScalars.first.flatMap { names[Int($0.value)] } ?? key.uppercased()
         return s
     }
 }
@@ -122,6 +126,18 @@ enum ActionRegistry {
               category: .navigation,
               icon: "arrow.right.to.line",
               defaultShortcut: KeyShortcut("g", [.command, .shift])) { $0.goToFolder(nil) },
+        .init(id: "nav.edit-path",
+              title: "Edit Address",
+              category: .navigation,
+              icon: "character.cursor.ibeam",
+              defaultShortcut: KeyShortcut("l", [.command]),
+              keywords: ["address bar", "path", "location"]) { $0.editAddress(nil) },
+        .init(id: "nav.reload",
+              title: "Refresh",
+              category: .navigation,
+              icon: "arrow.clockwise",
+              defaultShortcut: KeyShortcut("r", [.command]),
+              keywords: ["reload", "f5"]) { $0.refresh(nil) },
         .init(id: "nav.home",
               title: "Home",
               category: .navigation,
@@ -202,7 +218,7 @@ enum ActionRegistry {
               title: "Rename",
               category: .file,
               icon: "pencil",
-              defaultShortcut: nil) { $0.renameSelection(nil) },
+              defaultShortcut: KeyShortcut(String(UnicodeScalar(NSF2FunctionKey)!), [])) { $0.renameSelection(nil) },
         .init(id: "file.trash",
               title: "Move to Trash",
               category: .file,

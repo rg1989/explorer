@@ -975,6 +975,12 @@ final class PaneController: NSViewController, DirectoryModelDelegate, FileListDe
         if let created = lastCreated { fileList.queueReveal(created, rename: false); reload() }
     }
 
+    func editAddress() {
+        let style = Settings.pathControlStyle
+        if style == .editableField || style == .both { toolbar.focusPathField() }
+        else { showGoToFolderSheet() }
+    }
+
     func showGoToFolderSheet() {
         guard let win = view.window else { NSSound.beep(); return }
         let alert = NSAlert()

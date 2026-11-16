@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds Rascal and assembles a runnable .app bundle.
+# Builds Explorer and assembles a runnable .app bundle.
 # Usage: ./build.sh [debug|release]   (default: debug)
 set -euo pipefail
 
 CONFIG=${1:-debug}
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$ROOT/build/Rascal.app"
+APP_DIR="$ROOT/build/Explorer.app"
 SWIFT_BUILD_DIR="$ROOT/.build/$CONFIG"
 
 cd "$ROOT"
@@ -43,9 +43,9 @@ cp "$ROOT/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
 # privacy permissions you grant (Full Disk Access, Desktop/Documents/Downloads,
 # volumes) across rebuilds — ad-hoc signing changes identity every build, which
 # makes macOS re-ask every time. Run ./setup-signing.sh once to create it.
-SIGN_CN="FinderTwo Local Signing"
-SIGN_HASH=$(security find-certificate -c "$SIGN_CN" -Z "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null \
-    | awk '/SHA-1 hash:/{print $NF; exit}')
+SIGN_CN="Apple Development"
+SIGN_HASH=$(security find-identity -v -p codesigning \
+    | awk '/Apple Development|Developer ID Application/{print $2; exit}')
 if [[ -n "${SIGN_HASH:-}" ]] && codesign --force --deep --sign "$SIGN_HASH" "$APP_DIR" >/dev/null 2>&1; then
     echo "  signed with stable identity ($SIGN_CN) — permissions persist across rebuilds"
 else

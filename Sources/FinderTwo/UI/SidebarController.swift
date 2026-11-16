@@ -7,6 +7,28 @@ final class SidebarOutlineView: NSOutlineView {
     private(set) var hasActiveDrag = false
     var onDragFinished: (() -> Void)?
 
+    /// AppKit already expands on → and collapses on ←. Windows Explorer also
+    /// moves: ← on a closed folder goes to its parent, → on an open one to its
+    /// first child.
+    override func keyDown(with event: NSEvent) {
+        let plain = event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
+        if plain, selectedRow >= 0, let item = item(atRow: selectedRow) {
+            let open = isExpandable(item) && isItemExpanded(item)
+            var target = -1
+            if event.keyCode == 123, !open, let p = parent(forItem: item), p is SidebarController.TreeNode {
+                target = row(forItem: p)
+            } else if event.keyCode == 124, open, numberOfChildren(ofItem: item) > 0 {
+                target = selectedRow + 1
+            }
+            if target >= 0 {
+                selectRowIndexes(IndexSet(integer: target), byExtendingSelection: false)
+                scrollRowToVisible(target)
+                return
+            }
+        }
+        super.keyDown(with: event)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         hasActiveDrag = true
         return super.draggingEntered(sender)
@@ -57,6 +79,25 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
 
     let outline = SidebarOutlineView()
     private let scrollView = NSScrollView()
+
+    /// Favorites sit in their own strip pinned above the scrolling list, so they
+    /// stay in view however far the folder tree scrolls. The strip is a second
+    /// SidebarController that shows only that section; this one shows the rest.
+    // ponytail: the strip builds every section and keeps one; split the
+    // builders if sidebar reloads ever show up in a profile.
+    private var isPinnedFavorites = false
+    private var pinned: SidebarController?
+    private var pinnedHeightConstraint: NSLayoutConstraint?
+    private var onContentHeightChange: ((CGFloat) -> Void)?
+
+    /// Tell the host how tall the pinned strip's rows are.
+    private func reportContentHeight() {
+        guard isPinnedFavorites else { return }
+        let rows = outline.numberOfRows
+        onContentHeightChange?(rows > 0 ? outline.rect(ofRow: rows - 1).maxY + 6 : 0)
+    }
+    func outlineViewItemDidExpand(_ notification: Notification) { reportContentHeight() }
+    func outlineViewItemDidCollapse(_ notification: Notification) { reportContentHeight() }
 
     private final class Section {
         let title: String
@@ -154,11 +195,11 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     /// tree) can finish in any order without changing section order or flickering.
     private static func canonicalRank(of title: String) -> Int {
         switch title {
-        case "Favorites":                           return 0
-        case "Locations":                           return 1
-        case "Smart Folders":                       return 2
-        case "Tags":                                return 3
-        case SidebarController.foldersSectionTitle: return 4   // "Folders" — always last
+        case "Favorites":                           return 0   // short list, stays in view above the tree
+        case SidebarController.foldersSectionTitle: return 1
+        case "Locations":                           return 2
+        case "Smart Folders":                       return 3
+        case "Tags":                                return 4
         default:                                    return 99
         }
     }
@@ -169,6 +210,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         var all = base
         if let tags = tagsSection { all.append(tags) }
         all = all.filter { !$0.items.isEmpty || $0.title == SidebarController.foldersSectionTitle }
+        all = all.filter { ($0.title == "Favorites") == isPinnedFavorites }
         let order = SidebarLayout.orderedSectionTitles(available: all.map(\.title))
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         sections = all.sorted {
@@ -186,7 +228,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     private var favoritesSection: Section? { sections.first { $0.title == "Favorites" } }
     private var locationsSection: Section? { sections.first { $0.title == "Locations" } }
     private var foldersSection: Section? { sections.first { $0.title == SidebarController.foldersSectionTitle } }
-    private var favoriteURLs: [URL] { favoritesSection?.items.map(\.url) ?? [] }
+    private var favoriteURLs: [URL] { (favoritesSection ?? pinned?.favoritesSection)?.items.map(\.url) ?? [] }
     private var locationURLs: [URL] { locationsSection?.items.map(\.url) ?? [] }
     private var folderRootURLs: [URL] { foldersSection?.treeRoots?.map(\.url) ?? [] }
     private func containsFavorite(_ url: URL) -> Bool {
@@ -204,6 +246,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         let previousExpansion = Dictionary(uniqueKeysWithValues: sections.map {
             ($0.title, outline.isItemExpanded($0))
         })
+        // Adding or removing a favorite must not throw the list back to the top.
+        let scrollY = sidebarScrollY
+        defer { sidebarScrollY = scrollY }
         update()
         outline.reloadData()
         isRestoringSectionExpansion = true
@@ -215,11 +260,16 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
                 outline.collapseItem(section)
             }
         }
+        // A reload folds the tree; open it again down to the current folder.
+        if let url = selectedURL { highlight(url: url, scroll: false) }
+        reportContentHeight()
     }
 
     var testEntryTitles: [String] {
-        sections.flatMap { $0.items.map { $0.title } }
+        (pinned?.testEntryTitles ?? []) + sections.flatMap { $0.items.map { $0.title } }
     }
+    var testPinnedSectionTitles: [String] { pinned?.sections.map(\.title) ?? [] }
+    var testPinnedHeight: CGFloat { pinnedHeightConstraint?.constant ?? -1 }
     var testSectionTitles: [String] { sections.map(\.title) }
     var testLocationURLs: [URL] { locationURLs }
     var testFolderRootURLs: [URL] { folderRootURLs }
@@ -235,16 +285,19 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
     }
 
     func testSetSection(_ title: String, expanded: Bool) {
+        if title == "Favorites", let pinned { return pinned.testSetSection(title, expanded: expanded) }
         guard let section = sections.first(where: { $0.title == title }) else { return }
         if expanded { outline.expandItem(section) }
         else { outline.collapseItem(section) }
     }
     func testIsSectionExpanded(_ title: String) -> Bool {
+        if title == "Favorites", let pinned { return pinned.testIsSectionExpanded(title) }
         guard let section = sections.first(where: { $0.title == title }) else { return false }
         return outline.isItemExpanded(section)
     }
     func testReloadBookmarks() { bookmarksChanged() }
     func testCanDragFirstEntry(in sectionTitle: String) -> Bool {
+        if sectionTitle == "Favorites", let pinned { return pinned.testCanDragFirstEntry(in: sectionTitle) }
         guard let entry = sections.first(where: { $0.title == sectionTitle })?.items.first else {
             return false
         }
@@ -318,7 +371,36 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         scrollView.contentView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(scrollView)
-        scrollTopConstraint = scrollView.topAnchor.constraint(equalTo: v.topAnchor)
+        if !isPinnedFavorites {
+            let strip = SidebarController()
+            strip.isPinnedFavorites = true
+            strip.onSelect = { [weak self] in self?.onSelect?($0) }
+            strip.onOpenInNewTab = { [weak self] in self?.onOpenInNewTab?($0) }
+            strip.onOpenInNewPane = { [weak self] in self?.onOpenInNewPane?($0) }
+            strip.onOpenInNewWindow = { [weak self] in self?.onOpenInNewWindow?($0) }
+            addChild(strip)
+            strip.view.translatesAutoresizingMaskIntoConstraints = false
+            v.addSubview(strip.view)
+            pinned = strip
+            let height = strip.view.heightAnchor.constraint(equalToConstant: 0)
+            height.priority = .defaultHigh
+            pinnedHeightConstraint = height
+            strip.onContentHeightChange = { [weak self] in self?.pinnedHeightConstraint?.constant = $0 }
+            scrollTopConstraint = strip.view.topAnchor.constraint(equalTo: v.topAnchor)
+            NSLayoutConstraint.activate([
+                strip.view.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+                strip.view.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+                height,
+                // A long list scrolls inside the strip; the tree keeps half the pane.
+                strip.view.heightAnchor.constraint(lessThanOrEqualTo: v.heightAnchor, multiplier: 0.5),
+                scrollView.topAnchor.constraint(equalTo: strip.view.bottomAnchor),
+            ])
+            strip.reportContentHeight()
+        } else {
+            scrollView.verticalScrollElasticity = .none
+            scrollView.autohidesScrollers = true
+            scrollTopConstraint = scrollView.topAnchor.constraint(equalTo: v.topAnchor)
+        }
         NSLayoutConstraint.activate([
             tintView.topAnchor.constraint(equalTo: v.topAnchor),
             tintView.leadingAnchor.constraint(equalTo: v.leadingAnchor),
@@ -353,7 +435,7 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         outline.target = self
         outline.doubleAction = #selector(handleClick)
         outline.autosaveExpandedItems = true
-        outline.autosaveName = "FinderTwo.Sidebar"
+        outline.autosaveName = isPinnedFavorites ? "FinderTwo.SidebarFavorites" : "FinderTwo.Sidebar"
         outline.allowsMultipleSelection = false
         outline.allowsEmptySelection = true
         outline.focusRingType = .none   // no blue focus outline around the sidebar
@@ -375,6 +457,9 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         buildSections()
         outline.reloadData()
         for s in sections { outline.expandItem(s) }
+        // The first folder can arrive before this view exists.
+        if let url = selectedURL { highlight(url: url) }
+        reportContentHeight()
 
         NotificationCenter.default.addObserver(self, selector: #selector(bookmarksChanged),
                                                name: SidebarBookmarks.didChange, object: nil)
@@ -567,14 +652,37 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         outline.backgroundColor = bg
         tintView.layer?.backgroundColor = bg.cgColor
         outline.reloadData()
+        // reloadData drops the selection: keep the open folder marked.
+        if let url = selectedURL { highlight(url: url, scroll: false) }
+        reportContentHeight()
     }
 
     /// Test hook: the surface the sidebar actually renders (the outline's own
     /// background). Clear / zero-alpha = native vibrancy.
     var testSidebarBackground: NSColor? { outline.backgroundColor }
 
-    func highlight(url: URL) {
+    /// `scroll: false` is for re-applying the selection after a reload: only a
+    /// real navigation may move the sidebar's scroll position.
+    func highlight(url: URL, scroll: Bool = true) {
+        pinned?.highlight(url: url, scroll: false)
         selectedURL = url
+        // Windows Explorer behaviour: the tree opens down to the folder you are
+        // in and selects it, so depth is always visible on the left.
+        if let node = revealTreeNode(for: url) {
+            let row = outline.row(forItem: node)
+            if row >= 0 {
+                // Same value the selection callback compares against, so
+                // selecting the row never navigates a second time.
+                selectedURL = node.url
+                outline.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                // Off screen: bring it to the middle so its neighbours show too.
+                let rect = outline.rect(ofRow: row)
+                if scroll, let clip = outline.enclosingScrollView?.contentView, !clip.bounds.contains(rect) {
+                    sidebarScrollY = max(0, rect.midY - clip.bounds.height / 2)
+                }
+                return
+            }
+        }
         // Prefer a flat shortcut row (Favorites/Locations) for the active path.
         for s in sections {
             if let e = s.items.first(where: { $0.url == url }) {
@@ -597,6 +705,55 @@ final class SidebarController: NSViewController, NSOutlineViewDataSource, NSOutl
         }
         outline.deselectAll(nil)
     }
+
+    /// Expand the folder tree along the path to `url` and return its node. Only
+    /// the ancestors are scanned (one directory read each), never the target.
+    /// Returns nil when the Folders section is folded or no root contains `url`
+    /// (Recents, tags, a hidden folder), so the flat rows below still apply.
+    private func revealTreeNode(for url: URL) -> TreeNode? {
+        guard let section = foldersSection, outline.isItemExpanded(section) else { return nil }
+        let target = url.standardizedFileURL.path
+        func holds(_ node: TreeNode) -> Bool {
+            let p = node.url.standardizedFileURL.path
+            return target == p || target.hasPrefix(p == "/" ? p : p + "/")
+        }
+        // Deepest root wins: Home before the disk it lives on.
+        guard var node = treeRoots.filter(holds).max(by: { $0.url.path.count < $1.url.path.count })
+        else { return nil }
+        while node.url.standardizedFileURL.path != target {
+            outline.expandItem(node)
+            var next = node.loadChildrenIfNeeded().first(where: holds)
+            if next == nil {   // folder made after this level was read: read it again once
+                node.invalidateChildren()
+                outline.reloadItem(node, reloadChildren: true)
+                next = node.loadChildrenIfNeeded().first(where: holds)
+            }
+            guard let found = next else { return nil }
+            node = found
+        }
+        return node
+    }
+
+    /// Vertical scroll offset of the sidebar list, read and set on the clip view.
+    private var sidebarScrollY: CGFloat {
+        get { outline.enclosingScrollView?.contentView.bounds.origin.y ?? 0 }
+        set {
+            guard let scrollView = outline.enclosingScrollView else { return }
+            scrollView.layoutSubtreeIfNeeded()
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: newValue))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+    }
+
+    /// Vertical scroll offset of the sidebar list (test hook).
+    var testScrollRoom: CGFloat { outline.bounds.height - (outline.enclosingScrollView?.contentView.bounds.height ?? 0) }
+    var testScrollY: CGFloat {
+        get { sidebarScrollY }
+        set { sidebarScrollY = newValue }
+    }
+
+    /// The URL of the row selected in the sidebar (test hook).
+    var testSelectedURL: URL? { navigableURL(forRow: outline.selectedRow) }
 
     /// Find an already-loaded tree node whose URL matches `url`, without
     /// triggering any lazy scan (we read cached children only).

@@ -14,7 +14,7 @@ final class TestRunner {
     private var passed: [String] = []
 
     func runAll(appDelegate: AppDelegate) {
-        print("=== Rascal in-process tests ===")
+        print("=== Explorer in-process tests ===")
 
         // Sandbox for filesystem mutations
         let sandbox = makeSandbox()
@@ -1516,7 +1516,7 @@ final class TestRunner {
                   "FinderTwo.pathBarPosition"] {
             UserDefaults.standard.removeObject(forKey: k)
         }
-        assert("typeToSelect defaults off", Settings.typeToSelect == false, "got \(Settings.typeToSelect)")
+        assert("typeToSelect defaults on", Settings.typeToSelect == true, "got \(Settings.typeToSelect)")
         assert("showStatusBar defaults on", Settings.showStatusBar == true, "got \(Settings.showStatusBar)")
         assert("showPathBar defaults on", Settings.showPathBar == true, "got \(Settings.showPathBar)")
         assert("pathBarPosition defaults to bottom", Settings.pathBarPosition == .bottom,
@@ -2420,6 +2420,38 @@ final class TestRunner {
         }
         VimMode.shared.setEnabled(false)
 
+        // --- Windows Explorer keys: Enter opens, Backspace goes back, F2 renames ---
+        func plainKey(_ code: UInt16, _ chars: String) -> NSEvent {
+            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+                             timestamp: 0, windowNumber: 0, context: nil,
+                             characters: chars, charactersIgnoringModifiers: chars,
+                             isARepeat: false, keyCode: code)!
+        }
+        pane.navigate(to: sandbox)
+        pane.testReloadSync()
+        if let subdir = pane.testCurrentItems.first(where: { $0.isDirectory && $0.name == "subdir" }) {
+            pane.focusFileList()
+            pane.testSelectItem(subdir)
+            let opened = wc.handleExplorerKey(plainKey(36, "\r"))
+            wait(0.05)
+            assert("Enter opens the selected folder",
+                   opened && samePath(pane.currentURL, sandbox.appendingPathComponent("subdir")),
+                   "handled=\(opened) url=\(pane.currentURL.path)")
+            let back = wc.handleExplorerKey(plainKey(51, "\u{7F}"))
+            wait(0.05)
+            assert("Backspace goes back", back && samePath(pane.currentURL, sandbox),
+                   "handled=\(back) url=\(pane.currentURL.path)")
+        }
+        assert("F2 is the Rename shortcut",
+               ActionRegistry.action(id: "file.rename")?.defaultShortcut
+                   == KeyShortcut(String(UnicodeScalar(NSF2FunctionKey)!), []),
+               "got \(ActionRegistry.action(id: "file.rename")?.defaultShortcut?.displayLabel ?? "none")")
+        assert("no key is bound to permanent delete by the Explorer keys",
+               !wc.handleExplorerKey(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.shift],
+                   timestamp: 0, windowNumber: 0, context: nil, characters: "\u{F728}",
+                   charactersIgnoringModifiers: "\u{F728}", isARepeat: false, keyCode: 117)!),
+               "Shift+Delete was handled")
+
         // --- T56c: vim '/' and '?' focus filter; Return accepts and Esc cancels ---
         VimMode.shared.setEnabled(true)
         pane.navigate(to: sandbox)
@@ -2548,17 +2580,17 @@ final class TestRunner {
                "got \(themeIDs)")
         assert("theme library has 10+ themes", ThemeManager.shared.available.count >= 10,
                "got \(ThemeManager.shared.available.count)")
-        // Rascal's signature light + dark themes (matched to the landing page).
-        assert("Rascal Light & Dark themes ship",
+        // Explorer's signature light + dark themes (matched to the landing page).
+        assert("Explorer Light & Dark themes ship",
                themeIDs.isSuperset(of: ["rascal-light", "rascal-dark"]), "got \(themeIDs)")
         if let rl = ThemeManager.shared.available.first(where: { $0.id == "rascal-light" }),
            let rd = ThemeManager.shared.available.first(where: { $0.id == "rascal-dark" }) {
-            assert("Rascal Light is light + warm-orange accent",
+            assert("Explorer Light is light + warm-orange accent",
                    rl.appearance == .light && rl.accent.hexString == "#FF6600", "got \(rl.accent.hexString)")
-            assert("Rascal Dark is dark + warm-orange accent",
+            assert("Explorer Dark is dark + warm-orange accent",
                    rd.appearance == .dark && rd.accent.hexString == "#FF8A33", "got \(rd.accent.hexString)")
         } else {
-            assert("Rascal themes resolve", false, "missing")
+            assert("Explorer themes resolve", false, "missing")
         }
         // JSON spec → Theme (forgiving: omit the cosmetic extras).
         let specJSON = """
@@ -2708,9 +2740,12 @@ final class TestRunner {
         // line up and clear the traffic lights. Shown reverses all of it.
         let chromeSidebar = (wc.window?.contentViewController as? NSSplitViewController)?
             .splitViewItems.compactMap { $0.viewController as? SidebarController }.first
-        let inset = PaneController.hiddenTitleBarInset
+        let inset = BrowserWindowController.sidebarHiddenTitleBarInset
+        let frameBeforeTitleToggle = wc.window?.frame.size
         Settings.showTitleBar = false
         wait(0.02)
+        assert("hiding the title bar keeps the window size",
+               wc.window?.frame.size == frameBeforeTitleToggle, "size=\(String(describing: wc.window?.frame.size))")
         assert("title hidden → fullSizeContentView",
                wc.window?.styleMask.contains(.fullSizeContentView) ?? false, "no fullSize")
         assert("title hidden → titleVisibility .hidden",
@@ -2899,8 +2934,13 @@ final class TestRunner {
         assert("favorite reload preserves collapsed sidebar sections",
                !liveSidebar.testIsSectionExpanded("Locations"),
                "Locations expanded after Favorites reload")
+        assert("Favorites are pinned in their own strip above the scrolling list",
+               liveSidebar.testPinnedSectionTitles == ["Favorites"]
+                   && !liveSidebar.testSectionTitles.contains("Favorites")
+                   && liveSidebar.testPinnedHeight > 0,
+               "pinned=\(liveSidebar.testPinnedSectionTitles) list=\(liveSidebar.testSectionTitles) h=\(liveSidebar.testPinnedHeight)")
         assert("sidebar categories and supported folder rows are draggable",
-               liveSidebar.testCanDragSection("Favorites")
+               liveSidebar.testCanDragSection("Locations")
                    && liveSidebar.testCanDragFirstEntry(in: "Favorites")
                    && liveSidebar.testCanDragFirstEntry(in: "Locations")
                    && liveSidebar.testCanDragFirstFolderRoot(),
@@ -2936,6 +2976,19 @@ final class TestRunner {
         assert("folder can be pinned as a Folders root",
                liveSidebar.testFolderRootURLs.contains { samePath($0, treeRoot) },
                "roots=\(liveSidebar.testFolderRootURLs.map(\.path))")
+        let deep = treeRoot.appendingPathComponent("depthA/depthB")
+        try? FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
+        liveSidebar.highlight(url: deep)
+        assert("folder tree opens down to the current folder",
+               liveSidebar.testSelectedURL.map { samePath($0, deep) } == true,
+               "selected=\(liveSidebar.testSelectedURL?.path ?? "none")")
+        // Open Home in the tree so the list is taller than the sidebar.
+        liveSidebar.highlight(url: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents"))
+        liveSidebar.testScrollY = 150
+        let scrollBefore = liveSidebar.testScrollY
+        liveSidebar.testReloadBookmarks()
+        assert("a favorites change keeps the sidebar scroll position (was \(Int(scrollBefore)), room \(Int(liveSidebar.testScrollRoom)))",
+               abs(liveSidebar.testScrollY - scrollBefore) < 1, "now=\(liveSidebar.testScrollY)")
         SidebarLayout.removeFolderRoot(treeRoot)
     }
 
@@ -3076,7 +3129,7 @@ final class TestRunner {
         if let menu = NSApp.mainMenu,
            let helpItem = menu.items.first(where: { $0.title == "Help" }),
            let sub = helpItem.submenu,
-           let guideItem = sub.items.first(where: { $0.title == "Rascal Help Guide" }) {
+           let guideItem = sub.items.first(where: { $0.title == "Explorer Help Guide" }) {
             assert("Help menu and guide item exist", true, "")
             assert("Help menu item selector matches", guideItem.action == #selector(AppDelegate.showHelpGuide(_:)), "")
         } else {

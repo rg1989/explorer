@@ -108,8 +108,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
         sidebarItem.minimumThickness = LayoutToken.sidebarWidth.range.lowerBound
         // Raise the drag ceiling to the customized width when it exceeds the
         // stock 240 cap, so a wider sidebar is reachable by dragging too.
-        sidebarItem.maximumThickness = max(LayoutMetrics.value(.sidebarWidth), 240)
-        sidebarItem.preferredThicknessFraction = 0.15   // ~165pt on the default window
+        sidebarItem.maximumThickness = LayoutToken.sidebarWidth.range.upperBound
+        sidebarItem.preferredThicknessFraction = 0.24   // room for a folder tree
         sidebarItem.canCollapse = true
         // High holding priority pins the sidebar to its set width so the main
         // pane absorbs window resizing instead of the sidebar ballooning.
@@ -166,12 +166,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
         // (e.g. Miller-view column navigation) can no longer auto-grow it.
         (window as? UserResizeOnlyWindow)?.sizeLockedToUser = true
 
-        // A customized sidebar width is applied once the split view has laid
-        // out — setPosition before first layout doesn't stick. Untouched
-        // installs keep preferredThicknessFraction and skip this entirely.
-        if LayoutMetrics.isCustomized(.sidebarWidth) {
-            DispatchQueue.main.async { [weak self] in self?.applyLayoutMetrics() }
-        }
+        // The sidebar width is always applied: the folder tree needs its full
+        // default width, not a window fraction. setPosition before the first
+        // layout doesn't stick, so lay out first.
+        window.contentView?.layoutSubtreeIfNeeded()
+        applyLayoutMetrics()
 
         sidebarVC.onSelect = { [weak self] url in
             self?.panesContainer.activePane?.navigate(to: url)
@@ -209,6 +208,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
             }
         }
 
+        // The first folder is loaded before the callback above exists, so the
+        // tree would stay folded until the first navigation.
+        sidebarVC.highlight(url: panesContainer.activePane?.currentURL ?? rootURL)
+
         installVimKeyMonitor()
         installWindowJoinMonitor()
         applyTitleBarVisibility()
@@ -238,7 +241,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
         splitVC.splitViewItems[1].minimumThickness = LayoutMetrics.value(.paneMinWidth)
 
         let width = LayoutMetrics.value(.sidebarWidth)
-        splitVC.splitViewItems[0].maximumThickness = max(width, 240)
+        splitVC.splitViewItems[0].maximumThickness = LayoutToken.sidebarWidth.range.upperBound
         guard appliedSidebarWidth != width else { return }
         appliedSidebarWidth = width
         splitVC.splitView.setPosition(width, ofDividerAt: 0)
@@ -246,7 +249,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
 
     // MARK: Window joining
 
-    /// Drag a Rascal title bar over the centre of another Rascal window and
+    /// Drag a Explorer title bar over the centre of another Explorer window and
     /// release. The destination receives every source pane and its tabs; the
     /// source closes only after the complete merge succeeds.
     func windowWillMove(_ notification: Notification) {
@@ -341,8 +344,27 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
     /// Show/hide the window title bar. Hidden = full-size content under a
     /// transparent, title-less bar (traffic lights remain). The sidebar gets a
     /// top inset so its rows clear the traffic lights.
+    /// Extra space above the sidebar's rows when the title bar is hidden. On
+    /// macOS 26 the sidebar is a floating panel that already starts below the
+    /// traffic lights, so an inset there is just an empty band.
+    static var sidebarHiddenTitleBarInset: CGFloat {
+        if #available(macOS 26.0, *) { return 0 }
+        return PaneController.hiddenTitleBarInset
+    }
+
     private func applyTitleBarVisibility() {
         guard let window = window else { return }
+        // Changing the style mask resizes the content view. The user-resize lock
+        // would reject that and leave the content below an empty title bar.
+        // AppKit keeps the content size and changes the window height instead, so
+        // put the frame back afterwards: the window must not shrink on each launch.
+        let lockable = window as? UserResizeOnlyWindow
+        let frame = window.frame
+        lockable?.allowProgrammaticResize = true
+        defer {
+            window.setFrame(frame, display: true)
+            lockable?.allowProgrammaticResize = false
+        }
         if Settings.showTitleBar {
             window.styleMask.remove(.fullSizeContentView)
             window.titlebarAppearsTransparent = false
@@ -352,7 +374,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            sidebarVC.setTopInset(PaneController.hiddenTitleBarInset)
+            sidebarVC.setTopInset(BrowserWindowController.sidebarHiddenTitleBarInset)
         }
     }
 
@@ -375,13 +397,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
                 }
             }
 
+            if event.window === self.window, !self.firstResponderIsTextEditing(),
+               self.handleExplorerKey(event) {
+                return nil
+            }
+
             // Orthodox-commander function keys (work regardless of Vim mode):
-            // F5 copy to other pane, F6 move to other pane, F8 move to Trash.
+            // F6 move to other pane, F8 move to Trash. (F5 is Refresh.)
             if event.window === self.window, !self.firstResponderIsTextEditing(),
                event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
                let scalar = event.charactersIgnoringModifiers?.unicodeScalars.first {
                 switch Int(scalar.value) {
-                case 0xF708: self.copyToOtherPane(nil); return nil   // F5
                 case 0xF709: self.moveToOtherPane(nil); return nil   // F6
                 case 0xF70B: self.moveToTrash(nil); return nil       // F8
                 default: break
@@ -776,6 +802,43 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate, Theme
         activePane?.navigate(to: FileManager.default.homeDirectoryForCurrentUser)
     }
     @objc func goToFolder(_ sender: Any?) { activePane?.showGoToFolderSheet() }
+    @objc func editAddress(_ sender: Any?) { activePane?.editAddress() }
+    @objc func refresh(_ sender: Any?) { activePane?.reload() }
+
+    /// Windows Explorer keys, on top of the Mac ones. Returns true when the key
+    /// was used. Call only for this window's events while no text is being
+    /// edited. F2 (rename), ⌘L and ⌘R are ordinary menu actions instead.
+    func handleExplorerKey(_ event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        let inTree = window?.firstResponder === sidebarVC.outline
+        if mods.isEmpty {
+            switch event.keyCode {
+            case 36, 76:                          // Return, keypad Enter
+                // In the tree the folder is already open on the right: step into the list.
+                if inTree { activePane?.focusFileList() } else { openSelection(nil) }
+            case 51: goBack(nil)                  // Backspace
+            case 96: refresh(nil)                 // F5
+            case 48:                              // Tab: folder tree <-> file list
+                if inTree { activePane?.focusFileList() } else { window?.makeFirstResponder(sidebarVC.outline) }
+            case 117:                             // Forward Delete -> Trash (never permanent)
+                // Not from the tree: the selection that would go is in the other pane.
+                if inTree { return false }
+                moveToTrash(nil)
+            default: return false
+            }
+            return true
+        }
+        if mods == .option {
+            switch event.keyCode {
+            case 123: goBack(nil)                 // ⌥←
+            case 124: goForward(nil)              // ⌥→
+            case 126: goUp(nil)                   // ⌥↑
+            default: return false
+            }
+            return true
+        }
+        return false
+    }
 
     /// Pop up the GLOBAL recent-directories history (session-wide, distinct from
     /// the pane's back/forward) as a menu and navigate the ACTIVE pane to the
@@ -1054,7 +1117,7 @@ final class OffscreenSafeWindow: NSWindow {
     }
 }
 
-/// Temporary destination affordance while another Rascal window is being
+/// Temporary destination affordance while another Explorer window is being
 /// dragged over this one. It never receives input: AppKit keeps the drag with
 /// the source title bar until mouse-up.
 private final class WindowJoinDropOverlay: NSView {

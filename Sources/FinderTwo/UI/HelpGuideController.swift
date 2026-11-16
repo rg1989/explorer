@@ -10,8 +10,8 @@ final class HelpGuideController: NSWindowController, ThemeObserving {
         PresentedControllers.retain(c)
     }
 
-    private let titleLabel = NSTextField(labelWithString: "Rascal Help Guide")
-    private let subtitleLabel = NSTextField(labelWithString: "Learn how to access features and drive Rascal from the keyboard.")
+    private let titleLabel = NSTextField(labelWithString: "Explorer Help Guide")
+    private let subtitleLabel = NSTextField(labelWithString: "Learn how to access features and drive Explorer from the keyboard.")
     private let mainStack = NSStackView()
     let vimGuideContainer = NSStackView()
     private var isVimGuideExpanded = false
@@ -20,7 +20,7 @@ final class HelpGuideController: NSWindowController, ThemeObserving {
     init() {
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 600),
                            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        win.title = "Rascal Help"
+        win.title = "Explorer Help"
         win.minSize = NSSize(width: 400, height: 400)
         super.init(window: win)
         ThemeChrome.apply(to: window)
@@ -65,6 +65,18 @@ final class HelpGuideController: NSWindowController, ThemeObserving {
         mainStack.addArrangedSubview(featuresHeader)
         
         let shortcutItems = [
+            ("Enter", "Open — Enter the selected folder or open the file"),
+            ("⌫", "Back — Go to the previous folder (also ⌥← / ⌘[)"),
+            ("⌥→", "Forward — Go forward again (also ⌘])"),
+            ("⌥↑", "Up — Go to the enclosing folder (also ⌘↑)"),
+            ("Tab", "Switch between the folder tree and the file list"),
+            ("← →", "In the folder tree: collapse / expand, or go to parent / first child"),
+            ("F2", "Rename the selected item"),
+            ("⌦", "Move to Trash — Recoverable (also ⌘⌫)"),
+            ("⌘L", "Edit Address — Type a path in the address bar"),
+            ("F5", "Refresh the folder (also ⌘R)"),
+            ("Space", "Quick Look — Preview the selected file"),
+            ("A–Z", "Type a name to jump to it in the list"),
             ("⌘⇧P", "Command Palette — Search and run all actions"),
             ("⌘,", "Settings — Customize hotkeys, appearance, general config"),
             ("⌘\\", "Toggle Extra Pane — Open second pane for dual-pane mode"),

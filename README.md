@@ -1,3 +1,26 @@
+# Explorer
+
+Explorer is a personal fork of [Rascal](https://github.com/chang-07/rascal) by chang (MIT licence). It keeps Rascal's engine and changes the layout toward the classic Windows Explorer. The rest of this file is the upstream Rascal README.
+
+What this fork changes:
+
+- **Name and icon.** The app is called Explorer and has its own bundle id (`dev.rg1989.Explorer`), so it can sit next to a Rascal install.
+- **Folder tree.** A wide left pane with a folder tree that opens down to the current folder and selects it.
+- **Pinned Favorites.** Favorites stay in a fixed strip above the tree. A change to Favorites keeps the scroll position.
+- **Windows keys, in addition to the Mac ones.** Enter opens, F2 renames, Backspace goes back, Alt+Left / Alt+Right / Alt+Up navigate, Delete moves to Trash, Cmd+L edits the address, F5 refreshes, Tab switches between the tree and the file list. See [HOTKEYS.md](HOTKEYS.md).
+- **Compact top.** The navigation row shares the row of the window buttons. The path field has the same rounded shape as the filter.
+- **Safer git calls.** A browsed folder's `.git/config` cannot start programs through `core.fsmonitor`, an external diff or textconv. Clean and smudge filters are not blocked.
+
+Install on your own Mac (Command Line Tools are enough):
+
+```bash
+./fork-install.sh
+```
+
+The script builds a release, signs it with a local Apple Development or Developer ID identity if the keychain has one, and installs `/Applications/Explorer.app`. The build is not notarized. Check a change with `./build.sh release && ./smoketest.sh`.
+
+---
+
 # Rascal
 
 ![Rascal, a keyboard-first Finder replacement for macOS](media/rascal-banner.png)
@@ -71,8 +94,10 @@ ft ~/Downloads           # open a path
 | `⌘\` | Toggle extra pane |
 | `⌘T` / `⌘W` | New / close tab |
 | `⌘↑` / `⌘↓` | Enclosing folder / open selection |
-| `Return` / `Space` | Rename / Quick Look |
-| type letters | Live filter (`Esc` clears) |
+| `Enter` / `F2` / `Space` | Open / Rename / Quick Look |
+| `⌫` / `⌥←` `⌥→` `⌥↑` | Back / Back, Forward, Up |
+| `Tab` | Switch between the folder tree and the file list |
+| type letters | Jump to the matching item |
 | `` ⌘` `` | Inline terminal |
 | `⌘,` | Settings (themes, vim, shortcuts) |
 

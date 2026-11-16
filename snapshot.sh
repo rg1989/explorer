@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# snapshot.sh — render Rascal's UI to PNGs entirely off-screen, so you can
+# snapshot.sh — render Explorer's UI to PNGs entirely off-screen, so you can
 # check a visual change without a second monitor or the app stealing focus.
 #
 #   ./snapshot.sh                 # browser window at $HOME, light + dark, + Settings panes
@@ -13,7 +13,17 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-BIN="$ROOT/build/Rascal.app/Contents/MacOS/FinderTwo"
+BIN="$ROOT/build/Explorer.app/Contents/MacOS/FinderTwo"
+
+# Run from a copy with its own bundle id, so nothing the run writes lands in
+# the installed app's preferences (dev.rg1989.Explorer).
+TEST_APP="$ROOT/build/ExplorerTests.app"
+if [[ -x "$BIN" ]]; then
+    rm -rf "$TEST_APP" && cp -R "$ROOT/build/Explorer.app" "$TEST_APP"
+    plutil -replace CFBundleIdentifier -string dev.rg1989.Explorer.tests "$TEST_APP/Contents/Info.plist"
+    codesign --force --deep --sign - "$TEST_APP" >/dev/null 2>&1
+    BIN="$TEST_APP/Contents/MacOS/FinderTwo"
+fi
 OUT="${FT_SNAPSHOT_OUT:-$ROOT/build/snapshots}"
 TARGET="${1:-$HOME}"
 

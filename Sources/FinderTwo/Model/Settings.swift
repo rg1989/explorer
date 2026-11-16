@@ -112,9 +112,10 @@ enum Settings {
     }
 
     /// When on, typing in the list selects the next matching item (Finder
-    /// behavior) instead of opening the type-to-filter field. Off by default.
+    /// and Windows Explorer behavior) instead of opening the type-to-filter
+    /// field. On by default in this fork.
     static var typeToSelect: Bool {
-        get { d.object(forKey: "FinderTwo.typeToSelect") as? Bool ?? false }
+        get { d.object(forKey: "FinderTwo.typeToSelect") as? Bool ?? true }
         set { d.set(newValue, forKey: "FinderTwo.typeToSelect"); notify() }
     }
 

@@ -49,7 +49,7 @@ final class SettingsController: NSWindowController, NSToolbarDelegate, ThemeObse
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered, defer: false
         )
-        win.title = "Rascal Settings"
+        win.title = "Explorer Settings"
         super.init(window: win)
         ThemeChrome.apply(to: window)
         let toolbar = NSToolbar(identifier: "FinderTwo.Settings")
@@ -68,7 +68,7 @@ final class SettingsController: NSWindowController, NSToolbarDelegate, ThemeObse
         let vc = section.makeController()
         window?.contentViewController = vc
         window?.toolbar?.selectedItemIdentifier = NSToolbarItem.Identifier(section.rawValue)
-        window?.title = "Rascal Settings — \(section.label)"
+        window?.title = "Explorer Settings — \(section.label)"
         (vc as? ThemeObserving)?.applyTheme()
     }
 

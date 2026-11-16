@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# install.sh — build Rascal (release) and install it for everyday use.
+# install.sh — build Explorer (release) and install it for everyday use.
 #
 # Result:
-#   - /Applications/Rascal.app          (Spotlight finds it; click to launch)
+#   - /Applications/Explorer.app          (Spotlight finds it; click to launch)
 #   - /usr/local/bin/ft                    (CLI shortcut; opens the app)
 #
 # After install:
 #   ft                  open at current directory
 #   ft ~/Downloads      open at a specific path
 #   ft .                open at $PWD
-#   Spotlight → "Rascal"   from anywhere
+#   Spotlight → "Explorer"   from anywhere
 #   Cmd+Space → "ft" works once Spotlight has indexed the binary
 #
 # Re-run any time to reinstall after updates.
@@ -17,16 +17,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP_SRC="$ROOT/build/Rascal.app"
-APP_DEST_SYS="/Applications/Rascal.app"
-APP_DEST_USER="$HOME/Applications/Rascal.app"
+APP_SRC="$ROOT/build/Explorer.app"
+APP_DEST_SYS="/Applications/Explorer.app"
+APP_DEST_USER="$HOME/Applications/Explorer.app"
 BIN_DIRS=("/usr/local/bin" "$HOME/.local/bin")
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 dim() { printf '\033[2m%s\033[0m\n' "$*"; }
 
-bold "→ Building Rascal (release)…"
+bold "→ Building Explorer (release)…"
 "$ROOT/build.sh" release > /dev/null
 dim "  built at $APP_SRC"
 
@@ -78,7 +78,7 @@ FT_BIN="${chosen_bin}/ft"
 bold "→ Installing CLI to ${FT_BIN}…"
 WRAPPER_BODY=$(cat <<EOF
 #!/usr/bin/env bash
-# ft — open Rascal at a path. Installed by Rascal's install.sh.
+# ft — open Explorer at a path. Installed by Explorer's install.sh.
 set -e
 
 if [[ \$# -eq 0 ]]; then
@@ -100,7 +100,7 @@ fi
 
 APP="$APP_DEST"
 if [[ ! -d "\$APP" ]]; then
-    echo "ft: Rascal not found at \$APP (re-run install.sh)" >&2
+    echo "ft: Explorer not found at \$APP (re-run install.sh)" >&2
     exit 1
 fi
 
@@ -124,13 +124,13 @@ if [[ -x "$LSREG" ]]; then
 fi
 
 green ""
-green "✓ Rascal installed"
+green "✓ Explorer installed"
 echo ""
 echo "Try it now:"
 echo "  ft                  open at \$(pwd)"
 echo "  ft ~                open at home"
 echo "  ft ~/Downloads      open at Downloads"
-echo "  Spotlight → \"Rascal\""
+echo "  Spotlight → \"Explorer\""
 echo ""
 if [[ "$chosen_bin" == "$HOME/.local/bin" ]]; then
     echo "Note: $HOME/.local/bin is in PATH? If not, add it:"

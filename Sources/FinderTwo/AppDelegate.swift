@@ -250,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // ---- FinderTwo (App menu) ----
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Rascal",
+        appMenu.addItem(withTitle: "About Explorer",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(NSMenuItem.separator())
@@ -262,10 +262,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   keyEquivalent: "")
         fda.target = self
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(systemItem(title: "Hide Rascal",
+        appMenu.addItem(systemItem(title: "Hide Explorer",
                                    action: #selector(NSApplication.hide(_:)),
                                    key: "h"))
-        appMenu.addItem(systemItem(title: "Quit Rascal",
+        appMenu.addItem(systemItem(title: "Quit Explorer",
                                    action: #selector(NSApplication.terminate(_:)),
                                    key: "q"))
         attach(appMenu, to: mainMenu)
@@ -443,6 +443,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         goMenu.addItem(routed("pane.add", title: "Open in New Pane"))
         goMenu.addItem(NSMenuItem.separator())
         goMenu.addItem(routed("nav.goto", title: "Go to Folder…"))
+        goMenu.addItem(routed("nav.edit-path"))
+        goMenu.addItem(routed("nav.reload"))
         goMenu.addItem(routed("nav.home", title: "Home"))
         goMenu.addItem(routed("nav.recent-directories", title: "Recent Directories"))
         if Settings.developerMode {
@@ -516,7 +518,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         
         // ---- Help ----
         let helpMenu = NSMenu(title: "Help")
-        let helpItem = item(title: "Rascal Help Guide", action: #selector(showHelpGuide(_:)), key: "?", mods: [.command])
+        let helpItem = item(title: "Explorer Help Guide", action: #selector(showHelpGuide(_:)), key: "?", mods: [.command])
         helpItem.target = self
         helpMenu.addItem(helpItem)
         attach(helpMenu, to: mainMenu)

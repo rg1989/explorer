@@ -18,7 +18,7 @@ final class PermissionsOnboardingController: NSWindowController, ThemeObserving 
     private let welcomeView = NSView()
     private let iconView = NSImageView()
     private let eyebrow = NSTextField(labelWithString: "ONE-TIME SETUP")
-    private let titleLabel = NSTextField(labelWithString: "Give Rascal full access")
+    private let titleLabel = NSTextField(labelWithString: "Give Explorer full access")
     private let bodyLabel = NSTextField(wrappingLabelWithString: "")
     private let bulletStack = NSStackView()
     private let warningLabel = NSTextField(wrappingLabelWithString: "")
@@ -105,7 +105,7 @@ final class PermissionsOnboardingController: NSWindowController, ThemeObserving 
         titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
         titleLabel.alignment = .center
 
-        bodyLabel.stringValue = "Rascal is a file manager — it works best when it can see all your files. Grant Full Disk Access once and macOS will remember it. No per-folder pop-ups, ever again."
+        bodyLabel.stringValue = "Explorer is a file manager — it works best when it can see all your files. Grant Full Disk Access once and macOS will remember it. No per-folder pop-ups, ever again."
         bodyLabel.font = .systemFont(ofSize: 13)
         bodyLabel.alignment = .center
         bodyLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -189,7 +189,7 @@ final class PermissionsOnboardingController: NSWindowController, ThemeObserving 
         waitingTitleLabel.font = .systemFont(ofSize: 20, weight: .bold)
         waitingTitleLabel.alignment = .center
 
-        waitingBodyLabel.stringValue = "We opened System Settings for you. Please locate Rascal in the Full Disk Access list and turn it ON. We will automatically detect when it's enabled."
+        waitingBodyLabel.stringValue = "We opened System Settings for you. Please locate Explorer in the Full Disk Access list and turn it ON. We will automatically detect when it's enabled."
         waitingBodyLabel.font = .systemFont(ofSize: 13)
         waitingBodyLabel.alignment = .center
         waitingBodyLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -207,8 +207,8 @@ final class PermissionsOnboardingController: NSWindowController, ThemeObserving 
 
         for (num, text) in [
             ("1", "System Settings is open"),
-            ("2", "Find Rascal in the list (click + if missing)"),
-            ("3", "Toggle the switch next to Rascal to ON"),
+            ("2", "Find Explorer in the list (click + if missing)"),
+            ("3", "Toggle the switch next to Explorer to ON"),
         ] {
             let row = NSStackView()
             row.orientation = .horizontal
@@ -294,7 +294,7 @@ final class PermissionsOnboardingController: NSWindowController, ThemeObserving 
         successTitleLabel.font = .systemFont(ofSize: 22, weight: .bold)
         successTitleLabel.alignment = .center
 
-        successBodyLabel.stringValue = "Full Disk Access is active. Rascal is now ready to manage your files with maximum performance and zero prompts."
+        successBodyLabel.stringValue = "Full Disk Access is active. Explorer is now ready to manage your files with maximum performance and zero prompts."
         successBodyLabel.font = .systemFont(ofSize: 13)
         successBodyLabel.alignment = .center
         successBodyLabel.translatesAutoresizingMaskIntoConstraints = false

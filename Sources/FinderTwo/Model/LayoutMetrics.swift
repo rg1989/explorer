@@ -37,7 +37,7 @@ enum LayoutToken: String, CaseIterable {
         case .paletteWidth:      return 640
         case .paletteHeight:     return 440
         case .overlayRowHeight:  return 36
-        case .sidebarWidth:      return 165
+        case .sidebarWidth:      return 280
         case .paneMinWidth:      return 360
         case .extraPaneMinWidth: return 280
         case .previewPaneWidth:  return 260
@@ -51,7 +51,7 @@ enum LayoutToken: String, CaseIterable {
         case .paletteWidth:      return 420...1200
         case .paletteHeight:     return 280...1000
         case .overlayRowHeight:  return 24...56
-        case .sidebarWidth:      return 130...400
+        case .sidebarWidth:      return 130...600
         case .paneMinWidth:      return 240...800
         case .extraPaneMinWidth: return 200...600
         case .previewPaneWidth:  return 180...700

@@ -231,7 +231,16 @@ enum GitStatus {
         guard let git = gitPath else { return nil }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: git)
-        p.arguments = args
+        // A browsed folder's own .git/config must not be able to run programs:
+        // core.fsmonitor, diff.external and textconv are all commands git would
+        // start just because we asked for status or a diff (upstream issue #26).
+        // Not covered: clean/smudge filters named in .git/config; git has no
+        // single switch for those.
+        var hardened = ["-c", "core.fsmonitor=false"] + args
+        if let i = hardened.firstIndex(of: "diff") {
+            hardened.insert(contentsOf: ["--no-ext-diff", "--no-textconv"], at: i + 1)
+        }
+        p.arguments = hardened
         p.currentDirectoryURL = dir
         let out = Pipe()
         p.standardOutput = out
